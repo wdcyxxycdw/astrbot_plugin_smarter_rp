@@ -10,6 +10,7 @@ import pytest
 from smarter_rp.services.account_service import AccountService
 from smarter_rp.services.character_service import CharacterService
 from smarter_rp.services.debug_service import DebugService
+from smarter_rp.services.history_service import HistoryService
 from smarter_rp.services.prompt_builder import PromptBuilder
 from smarter_rp.services.request_rewriter import RequestRewriter
 from smarter_rp.services.session_service import SessionService
@@ -66,6 +67,8 @@ def make_real_plugin(main_module, tmp_path: Path):
     plugin.accounts = AccountService(storage)
     plugin.sessions = SessionService(storage)
     plugin.characters = CharacterService(storage)
+    plugin.characters.ensure_default_character()
+    plugin.history = HistoryService(storage, plugin.sessions, max_history_messages=40)
     plugin.prompt_builder = PromptBuilder(max_prompt_chars=4000)
     plugin.debug = DebugService(storage)
     plugin.rewriter = RequestRewriter(
@@ -74,6 +77,7 @@ def make_real_plugin(main_module, tmp_path: Path):
         characters=plugin.characters,
         prompt_builder=plugin.prompt_builder,
         debug=plugin.debug,
+        history=plugin.history,
     )
     return plugin
 
@@ -164,12 +168,18 @@ def test_init_wires_rewriter_services_with_storage(main_module, monkeypatch, tmp
 
     assert isinstance(plugin.accounts, AccountService)
     assert isinstance(plugin.characters, CharacterService)
+    assert isinstance(plugin.history, HistoryService)
     assert isinstance(plugin.prompt_builder, PromptBuilder)
     assert isinstance(plugin.rewriter, RequestRewriter)
     assert plugin.accounts.storage is plugin.storage
     assert plugin.characters.storage is plugin.storage
+    assert plugin.history.storage is plugin.storage
+    assert plugin.history.sessions is plugin.sessions
+    assert plugin.history.max_history_messages == 40
     assert plugin.rewriter.accounts is plugin.accounts
     assert plugin.rewriter.sessions is plugin.sessions
     assert plugin.rewriter.characters is plugin.characters
     assert plugin.rewriter.prompt_builder is plugin.prompt_builder
     assert plugin.rewriter.debug is plugin.debug
+    assert plugin.rewriter.history is plugin.history
+    assert plugin.characters.list_characters()

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from smarter_rp.models import AccountProfile, Character, RpSession
+from smarter_rp.models import AccountProfile, Character, RpMessage, RpSession
 
 
 class PromptBuilder:
@@ -15,6 +15,7 @@ class PromptBuilder:
         session: RpSession,
         character: Character,
         current_input: str,
+        history_messages: list[RpMessage] | None = None,
     ) -> str:
         blocks = [
             self._block("Global RP System Rules", "Stay in character and continue the roleplay naturally."),
@@ -22,15 +23,32 @@ class PromptBuilder:
             self._block("Character", self._character_text(character)),
             self._block("Lore", "No lore entries selected in Phase 1."),
             self._block("Memory", "No memory entries selected in Phase 1."),
-            self._block("History", "No recent history selected in Phase 1."),
+            self._block("Recent RP History", self._history_text(history_messages)),
             self._block("Session Summary", session.summary),
             self._block("Session State", self._format_mapping(session.state)),
             self._block("Current Input", current_input),
         ]
         return self._fit_to_budget("\n\n".join(blocks), current_input)
 
+    def contexts_from_history(self, history_messages: list[RpMessage] | None) -> list[dict[str, str]]:
+        contexts = []
+        for message in history_messages or []:
+            content = message.content.strip()
+            if message.role in ("user", "assistant") and content:
+                contexts.append({"role": message.role, "content": content})
+        return contexts
+
     def _block(self, title: str, content: str) -> str:
         return f"[{title}]\n{content or '(empty)'}"
+
+    def _history_text(self, history_messages: list[RpMessage] | None) -> str:
+        lines = []
+        for message in history_messages or []:
+            content = message.content.strip()
+            if message.role in ("user", "assistant") and content:
+                speaker = message.speaker.strip() or message.role
+                lines.append(f"{speaker}: {content}")
+        return "\n".join(lines) or "No recent RP history selected."
 
     def _account_persona(self, account_profile: AccountProfile | None) -> str:
         if account_profile is None:

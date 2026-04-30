@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from smarter_rp.models import AccountProfile, Character, RpSession
 from smarter_rp.services.character_service import CharacterService, FALLBACK_CHARACTER_ID
 from smarter_rp.storage import Storage, loads_json
@@ -170,3 +172,137 @@ def test_save_character_upsert_preserves_created_at_and_refreshes_updated_at(
     assert replacement_saved.created_at == first_saved.created_at
     assert replacement_saved.updated_at == 200
     assert replacement_saved == loaded
+
+
+def test_rich_character_fields_round_trip_in_data_json(tmp_path: Path):
+    storage, service = make_service(tmp_path)
+    character = Character(
+        id="character_rich",
+        name="Alice",
+        aliases=["Al", "Traveler"],
+        description="A traveler",
+        personality="Curious",
+        scenario="At the gate",
+        first_message="Hello there.",
+        alternate_greetings=["Hi.", "Welcome."],
+        example_dialogues=[{"role": "user", "content": "Hello"}],
+        speaking_style="Warm",
+        system_prompt="You are Alice.",
+        post_history_prompt="Remember the gate.",
+        author_note="Keep tone gentle.",
+        linked_lorebook_ids=["lore_1", "lore_2"],
+        metadata={"tags": ["hero"]},
+    )
+
+    saved = service.save_character(character)
+    loaded = service.get_character(character.id)
+    row = storage.fetch_one("SELECT * FROM characters WHERE id = ?", (character.id,))
+
+    assert loaded == saved
+    assert loaded.aliases == ["Al", "Traveler"]
+    assert loaded.first_message == "Hello there."
+    assert loaded.alternate_greetings == ["Hi.", "Welcome."]
+    assert loaded.example_dialogues == [{"role": "user", "content": "Hello"}]
+    assert loaded.speaking_style == "Warm"
+    assert loaded.post_history_prompt == "Remember the gate."
+    assert loaded.author_note == "Keep tone gentle."
+    assert loaded.linked_lorebook_ids == ["lore_1", "lore_2"]
+    assert loads_json(row["data_json"]) == {
+        "aliases": ["Al", "Traveler"],
+        "first_message": "Hello there.",
+        "alternate_greetings": ["Hi.", "Welcome."],
+        "example_dialogues": [{"role": "user", "content": "Hello"}],
+        "speaking_style": "Warm",
+        "post_history_prompt": "Remember the gate.",
+        "author_note": "Keep tone gentle.",
+        "linked_lorebook_ids": ["lore_1", "lore_2"],
+        "metadata": {"tags": ["hero"]},
+    }
+
+
+def test_create_update_and_alias_lookup_character(tmp_path: Path, monkeypatch):
+    _, service = make_service(tmp_path)
+    timestamps = iter([100, 200])
+    monkeypatch.setattr("smarter_rp.services.character_service.now_ts", lambda: next(timestamps))
+
+    created = service.create_character(
+        Character(id="", name="Alice", aliases=["Al"], system_prompt="Prompt")
+    )
+    updated = service.update_character(
+        created.id,
+        name="Alicia",
+        aliases=["Ace", "Traveler"],
+        first_message="Welcome.",
+    )
+
+    assert created.id.startswith("character_")
+    assert updated is not None
+    assert updated.id == created.id
+    assert updated.created_at == 100
+    assert updated.updated_at == 200
+    assert updated.name == "Alicia"
+    assert updated.aliases == ["Ace", "Traveler"]
+    assert updated.first_message == "Welcome."
+    assert service.find_by_name_or_alias(" alicia ") == updated
+    assert service.find_by_name_or_alias("ACE") == updated
+    assert service.find_by_name_or_alias("missing") is None
+    with pytest.raises(KeyError) as error:
+        service.update_character("missing", name="Nobody")
+    assert error.value.args == ("missing",)
+
+
+def test_update_character_rejects_immutable_fields_without_creating_rows(tmp_path: Path):
+    _, service = make_service(tmp_path)
+    original = service.save_character(Character(id="character_1", name="Alice"))
+
+    with pytest.raises(ValueError):
+        service.update_character(original.id, id="character_new")
+
+    loaded = service.get_character(original.id)
+    assert service.get_character("character_new") is None
+    assert loaded is not None
+    assert loaded.id == original.id
+    assert loaded.name == original.name
+    assert loaded.created_at == original.created_at
+    assert loaded.updated_at == original.updated_at
+
+    with pytest.raises(ValueError):
+        service.update_character(original.id, created_at=1)
+    with pytest.raises(ValueError):
+        service.update_character(original.id, updated_at=1)
+
+
+def test_delete_character_removes_row(tmp_path: Path):
+    _, service = make_service(tmp_path)
+    character = service.save_character(Character(id="character_1", name="Alice"))
+
+    service.delete_character(character.id)
+    assert service.get_character(character.id) is None
+    service.delete_character(character.id)
+
+
+def test_ensure_default_character_creates_and_reuses_fallback(tmp_path: Path):
+    _, service = make_service(tmp_path)
+
+    first = service.ensure_default_character()
+    second = service.ensure_default_character()
+
+    assert first.id == FALLBACK_CHARACTER_ID
+    assert first.name != ""
+    assert first.system_prompt != ""
+    assert second == first
+    assert service.list_characters() == [first]
+
+
+def test_ensure_default_character_returns_existing_character_without_fallback(tmp_path: Path):
+    _, service = make_service(tmp_path)
+    existing = service.save_character(
+        Character(id="character_existing", name="Existing", system_prompt="Existing prompt")
+    )
+
+    default = service.ensure_default_character()
+
+    assert default == existing
+    assert default.id != FALLBACK_CHARACTER_ID
+    assert service.get_character(FALLBACK_CHARACTER_ID) is None
+    assert service.list_characters() == [existing]

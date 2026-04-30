@@ -1,4 +1,4 @@
-from smarter_rp.models import AccountProfile, Character, RpSession
+from smarter_rp.models import AccountProfile, Character, RpMessage, RpSession
 from smarter_rp.services.prompt_builder import PromptBuilder
 
 
@@ -25,3 +25,27 @@ def test_prompt_builder_truncates_to_budget():
 
     assert len(prompt) <= 120
     assert "hello" in prompt
+
+
+def test_prompt_builder_includes_recent_rp_history():
+    builder = PromptBuilder(max_prompt_chars=4000)
+    history_messages = [
+        RpMessage(id="m1", session_id="s", role="user", speaker="Hero", content=" Hello there "),
+        RpMessage(id="m2", session_id="s", role="assistant", speaker="", content="General Kenobi"),
+        RpMessage(id="m3", session_id="s", role="system", speaker="Narrator", content="hidden"),
+        RpMessage(id="m4", session_id="s", role="user", speaker="Empty", content="   "),
+    ]
+
+    prompt = builder.build(
+        None,
+        RpSession("s", "origin", None),
+        Character(id="c", name="C"),
+        current_input="continue",
+        history_messages=history_messages,
+    )
+
+    assert "[Recent RP History]" in prompt
+    assert "Hero: Hello there" in prompt
+    assert "assistant: General Kenobi" in prompt
+    assert "hidden" not in prompt
+    assert "Empty:" not in prompt

@@ -7,6 +7,7 @@ from smarter_rp.models import AccountProfile, RpSession
 from smarter_rp.services.account_service import AccountService
 from smarter_rp.services.character_service import CharacterService
 from smarter_rp.services.debug_service import DebugService
+from smarter_rp.services.history_service import HistoryService
 from smarter_rp.services.prompt_builder import PromptBuilder
 from smarter_rp.services.session_service import SessionService
 
@@ -30,12 +31,14 @@ class RequestRewriter:
         characters: CharacterService,
         prompt_builder: PromptBuilder,
         debug: DebugService,
+        history: HistoryService | None = None,
     ):
         self.accounts = accounts
         self.sessions = sessions
         self.characters = characters
         self.prompt_builder = prompt_builder
         self.debug = debug
+        self.history = history
 
     def rewrite(self, event: object, request: object) -> RewriteResult:
         identity = self.accounts.extract_identity(event)
@@ -53,16 +56,18 @@ class RequestRewriter:
             profile,
             self._resolve_persona(event),
         )
+        history_messages = self.history.list_messages(session.id) if self.history is not None else []
         built_prompt = self.prompt_builder.build(
             profile,
             session,
             character,
             current_input=self._text_or_empty(self._safe_getattr(request, "prompt")),
+            history_messages=history_messages,
         )
         system_prompt = "[Smarter RP]\n" + built_prompt
 
         setattr(request, "system_prompt", system_prompt)
-        setattr(request, "contexts", [])
+        setattr(request, "contexts", self.prompt_builder.contexts_from_history(history_messages))
         self.debug.save_snapshot(session.id, "prompt", system_prompt)
         return RewriteResult(True, "rewritten", profile.id, session.id)
 

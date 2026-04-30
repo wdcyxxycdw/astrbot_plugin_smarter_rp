@@ -2,7 +2,9 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from smarter_rp.models import Character
 from smarter_rp.services.account_service import AccountIdentity, AccountService
+from smarter_rp.services.character_service import CharacterService
 from smarter_rp.services.session_service import SessionService
 from smarter_rp.storage import Storage
 from smarter_rp.web.app import create_app
@@ -189,6 +191,31 @@ def test_sessions_patch_updates_paused_and_active_lorebooks(tmp_path: Path):
     loaded = service.get_by_id(session.id)
     assert loaded.paused is True
     assert loaded.active_lorebook_ids == ["lore_1"]
+
+
+def test_sessions_patch_sets_and_clears_existing_active_character(tmp_path: Path):
+    storage = make_storage(tmp_path)
+    service = SessionService(storage)
+    character = CharacterService(storage).save_character(
+        Character(id="character_alice", name="Alice")
+    )
+    session = service.get_or_create("origin:1", "account_1")
+    client = TestClient(create_app(token="secret-token", storage=storage))
+
+    set_response = client.patch(
+        f"/api/sessions/{session.id}?token=secret-token",
+        json={"active_character_id": character.id},
+    )
+    clear_response = client.patch(
+        f"/api/sessions/{session.id}?token=secret-token",
+        json={"active_character_id": None},
+    )
+
+    assert set_response.status_code == 200
+    assert set_response.json()["active_character_id"] == character.id
+    assert clear_response.status_code == 200
+    assert clear_response.json()["active_character_id"] is None
+    assert service.get_by_id(session.id).active_character_id is None
 
 
 def test_sessions_patch_rejects_string_paused_without_update(tmp_path: Path):

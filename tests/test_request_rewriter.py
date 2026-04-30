@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from smarter_rp.services.account_service import AccountService
 from smarter_rp.services.character_service import CharacterService
 from smarter_rp.services.debug_service import DebugService
+from smarter_rp.services.history_service import HistoryService
 from smarter_rp.services.prompt_builder import PromptBuilder
 from smarter_rp.services.request_rewriter import RequestRewriter
 from smarter_rp.services.session_service import SessionService
@@ -115,6 +116,56 @@ def test_session_paused_passes_request_unchanged(tmp_path: Path):
     assert request.contexts == ["old context"]
     assert request.prompt == "Hello"
     assert request.tools == [{"name": "transfer_to_agent"}]
+    assert request.image_urls == ["img"]
+    assert request.attachments == ["file"]
+
+
+def test_rewrite_populates_contexts_from_plugin_history_and_preserves_prompt(tmp_path: Path):
+    storage = Storage(tmp_path / "smarter_rp.db")
+    storage.initialize()
+    accounts = AccountService(storage)
+    sessions = SessionService(storage)
+    history = HistoryService(storage, sessions)
+    rewriter = RequestRewriter(
+        accounts=accounts,
+        sessions=sessions,
+        characters=CharacterService(storage),
+        prompt_builder=PromptBuilder(max_prompt_chars=4000),
+        debug=DebugService(storage),
+        history=history,
+    )
+    event = SimpleNamespace(
+        adapter_name="adapter",
+        platform="platform",
+        account_id="bot",
+        unified_msg_origin="origin:history",
+    )
+    profile = accounts.get_or_create(accounts.extract_identity(event))
+    session = sessions.get_or_create("origin:history", profile.id)
+    history.append_message(session.id, role="user", speaker="Hero", content=" Hello ")
+    history.append_message(session.id, role="assistant", speaker="Alice", content="Hi back")
+    history.append_message(session.id, role="system", speaker="System", content="skip this")
+    request = SimpleNamespace(
+        prompt="Current prompt",
+        system_prompt="old",
+        contexts=["old context"],
+        tools=[{"name": "tool"}],
+        image_urls=["img"],
+        attachments=["file"],
+    )
+
+    result = rewriter.rewrite(event, request)
+
+    assert result.rewritten is True
+    assert request.prompt == "Current prompt"
+    assert request.contexts == [
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "Hi back"},
+    ]
+    assert "Hero: Hello" in request.system_prompt
+    assert "Alice: Hi back" in request.system_prompt
+    assert "skip this" not in request.system_prompt
+    assert request.tools == [{"name": "tool"}]
     assert request.image_urls == ["img"]
     assert request.attachments == ["file"]
 

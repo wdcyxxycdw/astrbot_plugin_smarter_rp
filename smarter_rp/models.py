@@ -24,10 +24,18 @@ class AccountProfile:
 class Character:
     id: str
     name: str = ""
-    system_prompt: str = ""
+    aliases: list[str] = field(default_factory=list)
     description: str = ""
     personality: str = ""
     scenario: str = ""
+    first_message: str = ""
+    alternate_greetings: list[str] = field(default_factory=list)
+    example_dialogues: list[dict[str, Any]] = field(default_factory=list)
+    speaking_style: str = ""
+    system_prompt: str = ""
+    post_history_prompt: str = ""
+    author_note: str = ""
+    linked_lorebook_ids: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: int = 0
     updated_at: int = 0
@@ -49,6 +57,19 @@ class RpSession:
     turn_count: int = 0
     created_at: int = 0
     updated_at: int = 0
+
+
+@dataclass(slots=True)
+class RpMessage:
+    id: str
+    session_id: str
+    role: Literal["user", "assistant", "system"]
+    speaker: str
+    content: str
+    visible: bool = True
+    turn_number: int = 0
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: int = 0
 
 
 @dataclass(slots=True)

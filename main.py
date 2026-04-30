@@ -11,6 +11,7 @@ from smarter_rp.config import SmarterRpConfig
 from smarter_rp.services.account_service import AccountService
 from smarter_rp.services.character_service import CharacterService
 from smarter_rp.services.debug_service import DebugService
+from smarter_rp.services.history_service import HistoryService
 from smarter_rp.services.prompt_builder import PromptBuilder
 from smarter_rp.services.request_rewriter import RequestRewriter
 from smarter_rp.services.session_service import SessionService
@@ -30,6 +31,12 @@ class SmarterRpPlugin(Star):
         self.accounts = AccountService(self.storage)
         self.sessions = SessionService(self.storage)
         self.characters = CharacterService(self.storage)
+        self.characters.ensure_default_character()
+        self.history = HistoryService(
+            self.storage,
+            self.sessions,
+            max_history_messages=self.config_model.history.get("max_history_messages", 40),
+        )
         self.prompt_builder = PromptBuilder(max_prompt_chars=4000)
         self.debug = DebugService(self.storage)
         self.rewriter = RequestRewriter(
@@ -38,6 +45,7 @@ class SmarterRpPlugin(Star):
             characters=self.characters,
             prompt_builder=self.prompt_builder,
             debug=self.debug,
+            history=self.history,
         )
         self.webui = WebuiService(
             token_path=data_dir / "webui_token",
@@ -63,6 +71,40 @@ class SmarterRpPlugin(Star):
 
     async def on_llm_request(self, event, req):
         self.rewriter.rewrite(event, req)
+
+    async def on_agent_done(self, event, response):
+        session = self.sessions.get_or_create(self._origin(event), None)
+        user_text = self._extract_user_text(event)
+        assistant_text = self._extract_assistant_text(response)
+        if user_text:
+            self.history.append_message(session.id, role="user", speaker="User", content=user_text)
+        if assistant_text:
+            self.history.append_message(session.id, role="assistant", speaker="Assistant", content=assistant_text)
+
+    def _origin(self, event) -> str:
+        origin = self._string_or_empty(self._safe_get(event, "unified_msg_origin"))
+        return origin or "unknown"
+
+    def _extract_user_text(self, event) -> str:
+        for name in ("message_str", "message", "raw_message"):
+            text = self._string_or_empty(self._safe_get(event, name))
+            if text:
+                return text
+        return ""
+
+    def _extract_assistant_text(self, response) -> str:
+        if isinstance(response, str):
+            return self._string_or_empty(response)
+        for name in ("completion_text", "result", "content", "text"):
+            text = self._string_or_empty(self._safe_get(response, name))
+            if text:
+                return text
+        return ""
+
+    def _string_or_empty(self, value) -> str:
+        if isinstance(value, str):
+            return value.strip()
+        return ""
 
     @filter.command("rp")
     async def rp_root(self, event, subcommand: str | None = None):

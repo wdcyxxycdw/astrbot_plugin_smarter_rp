@@ -9,6 +9,7 @@ from smarter_rp.storage import Storage, dumps_json, loads_json, now_ts
 
 
 FALLBACK_CHARACTER_ID = "character_builtin_fallback"
+IMMUTABLE_CHARACTER_FIELDS = {"id", "created_at", "updated_at"}
 _MISSING = object()
 
 
@@ -42,6 +43,16 @@ class CharacterService:
         )
 
     def save_character(self, character: Character) -> Character:
+        if not character.id:
+            character.id = make_stable_id(
+                "character",
+                character.name,
+                character.aliases,
+                character.system_prompt,
+                character.description,
+                character.personality,
+                character.scenario,
+            )
         self._ensure_character_columns()
         existing = self.storage.fetch_one(
             "SELECT created_at FROM characters WHERE id = ?",
@@ -99,6 +110,53 @@ class CharacterService:
         if row is None:
             return None
         return self._from_row(row)
+
+    def create_character(self, character: Character) -> Character:
+        if not character.id:
+            character.id = make_stable_id(
+                "character",
+                character.name,
+                character.aliases,
+                character.system_prompt,
+                character.description,
+                character.personality,
+                character.scenario,
+            )
+        return self.save_character(character)
+
+    def update_character(self, character_id: str, **fields: Any) -> Character:
+        character = self.get_character(character_id)
+        if character is None:
+            raise KeyError(character_id)
+        for name, value in fields.items():
+            if name in IMMUTABLE_CHARACTER_FIELDS:
+                raise ValueError(f"Immutable character field: {name}")
+            if not hasattr(character, name):
+                raise ValueError(f"Unknown character field: {name}")
+            setattr(character, name, value)
+        return self.save_character(character)
+
+    def delete_character(self, character_id: str) -> None:
+        self._ensure_character_columns()
+        self.storage.execute("DELETE FROM characters WHERE id = ?", (character_id,))
+
+    def find_by_name_or_alias(self, value: str) -> Character | None:
+        target = value.strip().casefold()
+        if target == "":
+            return None
+        for character in self.list_characters():
+            if character.name.strip().casefold() == target:
+                return character
+            for alias in character.aliases:
+                if alias.strip().casefold() == target:
+                    return character
+        return None
+
+    def ensure_default_character(self) -> Character:
+        characters = self.list_characters()
+        if characters:
+            return characters[0]
+        return self.save_character(self.fallback_character())
 
     def list_characters(self) -> list[Character]:
         self._ensure_character_columns()
@@ -159,17 +217,42 @@ class CharacterService:
         return Character(
             id=row["id"],
             name=row["name"],
-            system_prompt=row["system_prompt"],
+            aliases=self._string_list_value(data.get("aliases")),
             description=row["description"],
             personality=row["personality"],
             scenario=row["scenario"],
+            first_message=self._string_value(data.get("first_message")),
+            alternate_greetings=self._string_list_value(data.get("alternate_greetings")),
+            example_dialogues=self._dialogue_list_value(data.get("example_dialogues")),
+            speaking_style=self._string_value(data.get("speaking_style")),
+            system_prompt=row["system_prompt"],
+            post_history_prompt=self._string_value(data.get("post_history_prompt")),
+            author_note=self._string_value(data.get("author_note")),
+            linked_lorebook_ids=self._string_list_value(data.get("linked_lorebook_ids")),
             metadata=self._dict_value(data.get("metadata")),
             created_at=int(row["created_at"]),
             updated_at=int(row["updated_at"]),
         )
 
     def _to_json(self, character: Character) -> str:
-        return dumps_json({"metadata": character.metadata})
+        data: dict[str, Any] = {"metadata": character.metadata}
+        if character.aliases:
+            data["aliases"] = character.aliases
+        if character.first_message:
+            data["first_message"] = character.first_message
+        if character.alternate_greetings:
+            data["alternate_greetings"] = character.alternate_greetings
+        if character.example_dialogues:
+            data["example_dialogues"] = character.example_dialogues
+        if character.speaking_style:
+            data["speaking_style"] = character.speaking_style
+        if character.post_history_prompt:
+            data["post_history_prompt"] = character.post_history_prompt
+        if character.author_note:
+            data["author_note"] = character.author_note
+        if character.linked_lorebook_ids:
+            data["linked_lorebook_ids"] = character.linked_lorebook_ids
+        return dumps_json(data)
 
     def _ensure_character_columns(self) -> None:
         columns = {row["name"] for row in self.storage.fetch_all("PRAGMA table_info(characters)")}
@@ -201,3 +284,13 @@ class CharacterService:
         if isinstance(value, dict):
             return value
         return {}
+
+    def _string_list_value(self, value: Any) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        return [str(item) for item in value]
+
+    def _dialogue_list_value(self, value: Any) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            return []
+        return [item for item in value if isinstance(item, dict)]

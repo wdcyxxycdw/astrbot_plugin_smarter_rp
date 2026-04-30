@@ -44,6 +44,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "rerank_top_k": 10,
         "keyword_fallback_enabled": True,
     },
+    "history": {
+        "max_history_messages": 40,
+    },
     "webui": {
         "enabled": True,
         "host": "0.0.0.0",
@@ -75,6 +78,7 @@ class SmarterRpConfig:
     prompt: dict[str, Any]
     lorebook: dict[str, Any]
     memory: dict[str, Any]
+    history: dict[str, Any]
     webui: dict[str, Any]
     storage: dict[str, Any]
 
@@ -98,6 +102,7 @@ class SmarterRpConfig:
             prompt=merged["prompt"],
             lorebook=merged["lorebook"],
             memory=merged["memory"],
+            history=merged["history"],
             webui=merged["webui"],
             storage=merged["storage"],
         )
@@ -117,6 +122,7 @@ class SmarterRpConfig:
             "prompt": deepcopy(self.prompt),
             "lorebook": deepcopy(self.lorebook),
             "memory": deepcopy(self.memory),
+            "history": deepcopy(self.history),
             "webui": deepcopy(self.webui),
             "storage": deepcopy(self.storage),
         }

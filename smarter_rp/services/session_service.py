@@ -88,6 +88,14 @@ class SessionService:
             session.active_character_id = active_character_id
         if active_lorebook_ids is not None:
             session.active_lorebook_ids = active_lorebook_ids
+        return self.save_session_state(session)
+
+    def set_paused(self, session_id: str, paused: bool) -> RpSession:
+        session = self.get_by_id(session_id)
+        session.paused = paused
+        return self.save_session_state(session)
+
+    def save_session_state(self, session: RpSession) -> RpSession:
         session.updated_at = now_ts()
         self.storage.execute(
             """
@@ -98,25 +106,6 @@ class SessionService:
             (
                 int(session.paused),
                 session.active_character_id,
-                session.updated_at,
-                self._to_json(session),
-                session.id,
-            ),
-        )
-        return session
-
-    def set_paused(self, session_id: str, paused: bool) -> RpSession:
-        session = self.get_by_id(session_id)
-        session.paused = paused
-        session.updated_at = now_ts()
-        self.storage.execute(
-            """
-            UPDATE rp_sessions
-            SET paused = ?, updated_at = ?, data_json = ?
-            WHERE id = ?
-            """,
-            (
-                int(session.paused),
                 session.updated_at,
                 self._to_json(session),
                 session.id,
