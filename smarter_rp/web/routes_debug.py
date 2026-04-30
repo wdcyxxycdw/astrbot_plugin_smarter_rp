@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from smarter_rp.models import DebugSnapshot
 from smarter_rp.services.debug_service import DebugService
+from smarter_rp.services.session_service import SessionService
 
 
 def serialize_snapshot(snapshot: DebugSnapshot) -> dict:
@@ -45,5 +46,17 @@ def create_debug_router(
         if snapshot is None:
             raise HTTPException(status_code=404, detail="snapshot not found")
         return serialize_snapshot(snapshot)
+
+    @router.get("/lore-hits", dependencies=[Depends(auth_dependency)])
+    async def get_lore_hits(session_id: str | None = Query(default=None)):
+        if session_id is None:
+            raise HTTPException(status_code=400, detail="session_id is required")
+        if debug_service is None:
+            return {"hits": []}
+        try:
+            session = SessionService(debug_service.storage).get_by_id(session_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="session not found")
+        return {"hits": session.last_lore_hits}
 
     return router

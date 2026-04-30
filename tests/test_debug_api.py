@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from smarter_rp.services.debug_service import DebugService
+from smarter_rp.services.session_service import SessionService
 from smarter_rp.storage import Storage
 from smarter_rp.web.app import create_app
 
@@ -104,3 +105,56 @@ def test_debug_snapshots_without_storage_returns_empty_list():
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_debug_lore_hits_returns_session_last_lore_hits(tmp_path: Path):
+    storage = make_storage(tmp_path)
+    sessions = SessionService(storage)
+    session = sessions.get_or_create("origin_1", None)
+    session.last_lore_hits = [
+        {"entry_id": "entry_1", "reason": "key", "matched_key": "gate"}
+    ]
+    sessions.save_session_state(session)
+    client = TestClient(create_app(token="secret-token", storage=storage))
+
+    response = client.get(
+        f"/api/debug/lore-hits?token=secret-token&session_id={session.id}"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"hits": session.last_lore_hits}
+
+
+def test_debug_lore_hits_without_storage_returns_empty_hits():
+    client = TestClient(create_app(token="secret-token"))
+
+    response = client.get("/api/debug/lore-hits?token=secret-token&session_id=session_1")
+
+    assert response.status_code == 200
+    assert response.json() == {"hits": []}
+
+
+def test_debug_lore_hits_requires_session_id(tmp_path: Path):
+    client = TestClient(create_app(token="secret-token", storage=make_storage(tmp_path)))
+
+    response = client.get("/api/debug/lore-hits?token=secret-token")
+
+    assert response.status_code == 400
+
+
+def test_debug_lore_hits_without_storage_still_requires_session_id():
+    client = TestClient(create_app(token="secret-token"))
+
+    response = client.get("/api/debug/lore-hits?token=secret-token")
+
+    assert response.status_code == 400
+
+
+def test_debug_lore_hits_returns_404_for_missing_session(tmp_path: Path):
+    client = TestClient(create_app(token="secret-token", storage=make_storage(tmp_path)))
+
+    response = client.get(
+        "/api/debug/lore-hits?token=secret-token&session_id=session_missing"
+    )
+
+    assert response.status_code == 404

@@ -327,14 +327,22 @@ body::before {
   border-radius: 16px;
 }
 
-button.record-item {
+button.record-item,
+.record-select-area {
   color: inherit;
   cursor: pointer;
   font: inherit;
 }
 
+.record-select-area {
+  min-width: 0;
+  flex: 1;
+}
+
 button.record-item:hover,
-button.record-item.selected {
+button.record-item.selected,
+.record-item.selected,
+.record-item:has(.record-select-area:hover) {
   border-color: rgba(104, 211, 145, 0.58);
   background: rgba(104, 211, 145, 0.12);
 }
@@ -367,6 +375,71 @@ button.record-item.selected {
   max-width: none;
   margin-bottom: 0;
   white-space: pre-wrap;
+}
+
+
+.lorebooks-panel {
+  width: min(1360px, 100%);
+}
+
+.compact-card {
+  height: auto;
+  margin-top: 18px;
+}
+
+.section-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.section-heading-row h3.ant-typography {
+  margin: 0;
+}
+
+.entry-list {
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.entry-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+.entry-form-grid .wide-field {
+  grid-column: 1 / -1;
+}
+
+.full-width-input,
+.assignment-control,
+.assignment-control .ant-select {
+  width: 100%;
+}
+
+.json-panel,
+.hit-test-output {
+  margin-top: 10px;
+  font-family: Menlo, Monaco, Consolas, monospace;
+}
+
+.hit-test-output {
+  max-height: 360px;
+  overflow: auto;
+  padding: 14px;
+  color: rgba(238, 248, 241, 0.82);
+  white-space: pre-wrap;
+  background: rgba(7, 18, 13, 0.58);
+  border: 1px solid rgba(104, 211, 145, 0.2);
+  border-radius: 14px;
+}
+
+.tool-row {
+  margin-top: 12px;
 }
 
 @media (max-width: 860px) {
@@ -404,8 +477,13 @@ button.record-item.selected {
   }
 
   .management-heading,
-  .record-item {
+  .record-item,
+  .section-heading-row {
     flex-direction: column;
+  }
+
+  .entry-form-grid {
+    grid-template-columns: 1fr;
   }
 }
 

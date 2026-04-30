@@ -12,6 +12,8 @@ from smarter_rp.services.account_service import AccountService
 from smarter_rp.services.character_service import CharacterService
 from smarter_rp.services.debug_service import DebugService
 from smarter_rp.services.history_service import HistoryService
+from smarter_rp.services.lorebook_matcher import LorebookMatcher
+from smarter_rp.services.lorebook_service import LorebookService
 from smarter_rp.services.prompt_builder import PromptBuilder
 from smarter_rp.services.request_rewriter import RequestRewriter
 from smarter_rp.services.session_service import SessionService
@@ -37,7 +39,15 @@ class SmarterRpPlugin(Star):
             self.sessions,
             max_history_messages=self.config_model.history.get("max_history_messages", 40),
         )
-        self.prompt_builder = PromptBuilder(max_prompt_chars=4000)
+        self.lorebooks = LorebookService(self.storage)
+        self.lorebook_matcher = LorebookMatcher(
+            max_hits=int(self.config_model.lorebook.get("max_hits", 12)),
+            max_chars=int(self.config_model.prompt.get("max_lore_chars", 6000)),
+            max_recursive_depth=int(self.config_model.lorebook.get("max_recursive_depth", 2)),
+        )
+        self.prompt_builder = PromptBuilder(
+            max_prompt_chars=int(self.config_model.prompt.get("max_prompt_chars", 4000))
+        )
         self.debug = DebugService(self.storage)
         self.rewriter = RequestRewriter(
             accounts=self.accounts,
@@ -46,6 +56,8 @@ class SmarterRpPlugin(Star):
             prompt_builder=self.prompt_builder,
             debug=self.debug,
             history=self.history,
+            lorebooks=self.lorebooks,
+            lorebook_matcher=self.lorebook_matcher,
         )
         self.webui = WebuiService(
             token_path=data_dir / "webui_token",

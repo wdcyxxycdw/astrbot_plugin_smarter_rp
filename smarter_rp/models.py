@@ -73,6 +73,71 @@ class RpMessage:
 
 
 @dataclass(slots=True)
+class Lorebook:
+    id: str
+    name: str
+    description: str = ""
+    scope: Literal["global", "session"] = "global"
+    session_id: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: int = 0
+    updated_at: int = 0
+
+
+@dataclass(slots=True)
+class LorebookEntry:
+    id: str
+    lorebook_id: str
+    title: str
+    content: str
+    enabled: bool = True
+    constant: bool = False
+    keys: list[str] = field(default_factory=list)
+    secondary_keys: list[str] = field(default_factory=list)
+    selective: bool = False
+    regex: bool = False
+    case_sensitive: bool = False
+    position: Literal[
+        "before_character",
+        "after_character",
+        "before_history",
+        "in_history",
+        "after_history",
+        "post_history",
+    ] = "before_history"
+    depth: int = 0
+    priority: int = 0
+    order: int = 0
+    probability: float = 1.0
+    cooldown_turns: int = 0
+    sticky_turns: int = 0
+    recursive: bool = False
+    group: str | None = None
+    character_filter: list[str] = field(default_factory=list)
+    max_injections_per_chat: int | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: int = 0
+    updated_at: int = 0
+
+
+@dataclass(slots=True)
+class LorebookHit:
+    entry_id: str
+    lorebook_id: str
+    title: str
+    content: str
+    position: str
+    priority: int
+    order: int
+    reason: str
+    matched_key: str = ""
+    source: str = ""
+    recursion_parent_id: str | None = None
+    trimmed: bool = False
+    filter_reason: str = ""
+
+
+@dataclass(slots=True)
 class DebugSnapshot:
     id: str
     session_id: str | None

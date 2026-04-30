@@ -16,18 +16,29 @@ class PromptBuilder:
         character: Character,
         current_input: str,
         history_messages: list[RpMessage] | None = None,
+        lorebook_buckets: dict[str, str] | None = None,
     ) -> str:
+        lorebook_buckets = lorebook_buckets or {}
         blocks = [
             self._block("Global RP System Rules", "Stay in character and continue the roleplay naturally."),
             self._block("Account/Profile Persona", self._account_persona(account_profile)),
-            self._block("Character", self._character_text(character)),
-            self._block("Lore", "No lore entries selected in Phase 1."),
-            self._block("Memory", "No memory entries selected in Phase 1."),
-            self._block("Recent RP History", self._history_text(history_messages)),
-            self._block("Session Summary", session.summary),
-            self._block("Session State", self._format_mapping(session.state)),
-            self._block("Current Input", current_input),
         ]
+        blocks.extend(self._lorebook_blocks(lorebook_buckets, "before_character"))
+        blocks.append(self._block("Character", self._character_text(character)))
+        blocks.extend(self._lorebook_blocks(lorebook_buckets, "after_character"))
+        blocks.append(self._block("Memory", "No memory entries selected in Phase 1."))
+        blocks.extend(self._lorebook_blocks(lorebook_buckets, "before_history"))
+        blocks.append(self._block("Recent RP History", self._history_text(history_messages)))
+        blocks.extend(self._lorebook_blocks(lorebook_buckets, "in_history"))
+        blocks.extend(self._lorebook_blocks(lorebook_buckets, "after_history"))
+        blocks.extend(
+            [
+                self._block("Session Summary", session.summary),
+                self._block("Session State", self._format_mapping(session.state)),
+            ]
+        )
+        blocks.extend(self._lorebook_blocks(lorebook_buckets, "post_history"))
+        blocks.append(self._block("Current Input", current_input))
         return self._fit_to_budget("\n\n".join(blocks), current_input)
 
     def contexts_from_history(self, history_messages: list[RpMessage] | None) -> list[dict[str, str]]:
@@ -40,6 +51,12 @@ class PromptBuilder:
 
     def _block(self, title: str, content: str) -> str:
         return f"[{title}]\n{content or '(empty)'}"
+
+    def _lorebook_blocks(self, lorebook_buckets: dict[str, str], position: str) -> list[str]:
+        content = lorebook_buckets.get(position, "")
+        if not content:
+            return []
+        return [self._block(f"Lorebook: {position}", content)]
 
     def _history_text(self, history_messages: list[RpMessage] | None) -> str:
         lines = []
