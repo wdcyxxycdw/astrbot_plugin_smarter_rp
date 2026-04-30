@@ -17,7 +17,10 @@ def main_module(monkeypatch):
     astrbot_module = types.ModuleType("astrbot")
     api_module = types.ModuleType("astrbot.api")
     event_module = types.ModuleType("astrbot.api.event")
-    filter_module = types.SimpleNamespace(command=lambda *_args, **_kwargs: (lambda func: func))
+    filter_module = types.SimpleNamespace(
+        command=lambda *_args, **_kwargs: (lambda func: func),
+        llm_tool=lambda *_args, **_kwargs: (lambda func: func),
+    )
     star_module = types.ModuleType("astrbot.api.star")
 
     class FakeStar:

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -8,6 +9,7 @@ from smarter_rp.services.history_service import HistoryService
 from smarter_rp.services.prompt_builder import PromptBuilder
 from smarter_rp.services.request_rewriter import RequestRewriter
 from smarter_rp.services.session_service import SessionService
+from smarter_rp.services.tool_service import ToolService
 from smarter_rp.storage import Storage
 
 
@@ -51,6 +53,155 @@ def test_rewrite_default_active_session_mutates_prompt(tmp_path: Path):
     assert request.prompt == "Hello"
     assert request.image_urls == ["img"]
     assert request.tools == [{"name": "transfer_to_agent"}]
+
+
+def test_rewrite_filters_tools_and_saves_tools_debug_snapshot(tmp_path: Path):
+    storage = Storage(tmp_path / "smarter_rp.db")
+    storage.initialize()
+    rewriter = RequestRewriter(
+        accounts=AccountService(storage),
+        sessions=SessionService(storage),
+        characters=CharacterService(storage),
+        prompt_builder=PromptBuilder(max_prompt_chars=4000),
+        debug=DebugService(storage),
+        tool_service=ToolService(mode="rp_tools_only"),
+    )
+    event = SimpleNamespace(
+        adapter_name="adapter",
+        platform="platform",
+        account_id="bot",
+        unified_msg_origin="origin:tools",
+    )
+    request = SimpleNamespace(
+        prompt="Hello",
+        system_prompt="old",
+        contexts=[],
+        tools=[{"name": "normal"}, {"name": "sc_roll_dice"}],
+    )
+
+    result = rewriter.rewrite(event, request)
+
+    assert [tool["name"] for tool in request.tools] == ["sc_roll_dice", "sc_query_lorebook", "sc_search_memory"]
+    assert "Available RP tools:" in request.system_prompt
+    assert request.prompt == "Hello"
+    snapshots = DebugService(storage).list_snapshots(session_id=result.session_id, snapshot_type="tools")
+    assert len(snapshots) == 1
+    payload = json.loads(snapshots[0].content)
+    assert payload["kind"] == "request_tools"
+    assert payload["status"] == "completed"
+    assert payload["field"] == "tools"
+    assert payload["final_names"] == ["sc_roll_dice", "sc_query_lorebook", "sc_search_memory"]
+
+
+def test_rewrite_filters_func_tool_without_inventing_tools_field(tmp_path: Path):
+    storage = Storage(tmp_path / "smarter_rp.db")
+    storage.initialize()
+    rewriter = RequestRewriter(
+        accounts=AccountService(storage),
+        sessions=SessionService(storage),
+        characters=CharacterService(storage),
+        prompt_builder=PromptBuilder(max_prompt_chars=4000),
+        debug=DebugService(storage),
+        tool_service=ToolService(mode="keep_subagents_only"),
+    )
+    event = SimpleNamespace(
+        adapter_name="adapter",
+        platform="platform",
+        account_id="bot",
+        unified_msg_origin="origin:func-tools",
+    )
+    request = SimpleNamespace(
+        prompt="Hello",
+        system_prompt="old",
+        contexts=[],
+        func_tool=[{"name": "normal"}, {"name": "transfer_to_agent"}],
+    )
+
+    result = rewriter.rewrite(event, request)
+
+    assert request.func_tool == [{"name": "transfer_to_agent"}]
+    assert not hasattr(request, "tools")
+    assert "Available RP tools:" not in request.system_prompt
+    snapshots = DebugService(storage).list_snapshots(session_id=result.session_id, snapshot_type="tools")
+    payload = json.loads(snapshots[0].content)
+    assert payload["field"] == "func_tool"
+    assert payload["final_names"] == ["transfer_to_agent"]
+
+
+def test_rewrite_filters_tools_and_func_tool_when_both_exist(tmp_path: Path):
+    storage = Storage(tmp_path / "smarter_rp.db")
+    storage.initialize()
+    rewriter = RequestRewriter(
+        accounts=AccountService(storage),
+        sessions=SessionService(storage),
+        characters=CharacterService(storage),
+        prompt_builder=PromptBuilder(max_prompt_chars=4000),
+        debug=DebugService(storage),
+        tool_service=ToolService(mode="keep_subagents_only"),
+    )
+    event = SimpleNamespace(adapter_name="adapter", platform="platform", account_id="bot", unified_msg_origin="origin:both-tools")
+    request = SimpleNamespace(
+        prompt="Hello",
+        system_prompt="old",
+        contexts=[],
+        tools=[{"name": "normal"}],
+        func_tool=({"name": "transfer_to_writer"}, {"name": "filtered"}),
+    )
+
+    result = rewriter.rewrite(event, request)
+
+    assert request.tools == []
+    assert request.func_tool == [{"name": "transfer_to_writer"}]
+    snapshots = DebugService(storage).list_snapshots(session_id=result.session_id, snapshot_type="tools")
+    payloads = [json.loads(snapshot.content) for snapshot in snapshots]
+    assert {payload["field"] for payload in payloads} == {"tools", "func_tool"}
+    assert any(payload["final_names"] == ["transfer_to_writer"] for payload in payloads)
+
+
+def test_rewrite_skips_non_list_tool_field_without_overwriting(tmp_path: Path):
+    storage = Storage(tmp_path / "smarter_rp.db")
+    storage.initialize()
+    rewriter = RequestRewriter(
+        accounts=AccountService(storage),
+        sessions=SessionService(storage),
+        characters=CharacterService(storage),
+        prompt_builder=PromptBuilder(max_prompt_chars=4000),
+        debug=DebugService(storage),
+        tool_service=ToolService(mode="keep_subagents_only"),
+    )
+    event = SimpleNamespace(adapter_name="adapter", platform="platform", account_id="bot", unified_msg_origin="origin:object-tools")
+    tool_holder = {"name": "transfer_to_writer"}
+    request = SimpleNamespace(prompt="Hello", system_prompt="old", contexts=[], tools=tool_holder)
+
+    result = rewriter.rewrite(event, request)
+
+    assert request.tools is tool_holder
+    snapshots = DebugService(storage).list_snapshots(session_id=result.session_id, snapshot_type="tools")
+    payload = json.loads(snapshots[0].content)
+    assert payload["status"] == "skipped"
+    assert payload["reason"] == "non_list_tool_field"
+    assert payload["field"] == "tools"
+
+
+def test_rewrite_without_tool_field_does_not_create_tool_snapshot_or_field(tmp_path: Path):
+    storage = Storage(tmp_path / "smarter_rp.db")
+    storage.initialize()
+    rewriter = RequestRewriter(
+        accounts=AccountService(storage),
+        sessions=SessionService(storage),
+        characters=CharacterService(storage),
+        prompt_builder=PromptBuilder(max_prompt_chars=4000),
+        debug=DebugService(storage),
+        tool_service=ToolService(mode="keep_all"),
+    )
+    event = SimpleNamespace(adapter_name="adapter", platform="platform", account_id="bot", unified_msg_origin="origin:no-tools")
+    request = SimpleNamespace(prompt="Hello", system_prompt="old", contexts=[])
+
+    result = rewriter.rewrite(event, request)
+
+    assert not hasattr(request, "tools")
+    assert not hasattr(request, "func_tool")
+    assert DebugService(storage).list_snapshots(session_id=result.session_id, snapshot_type="tools") == []
 
 
 def test_account_disabled_passes_request_unchanged(tmp_path: Path):
@@ -200,6 +351,7 @@ def test_rewrite_saves_redacted_debug_snapshots(tmp_path: Path):
     assert "[REDACTED]" in combined
     assert "prompt" in combined
     assert "system_prompt" in combined
+    assert "func_tool" in combined
 
 
 def test_rewrite_uses_safe_unknown_origin_fallback(tmp_path: Path):

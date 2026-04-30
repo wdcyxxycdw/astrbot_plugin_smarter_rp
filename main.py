@@ -21,6 +21,7 @@ from smarter_rp.services.memory_service import MemoryService
 from smarter_rp.services.prompt_builder import PromptBuilder
 from smarter_rp.services.request_rewriter import RequestRewriter
 from smarter_rp.services.session_service import SessionService
+from smarter_rp.services.tool_service import ToolService
 from smarter_rp.services.webui_service import WebuiService
 from smarter_rp.storage import Storage
 
@@ -63,6 +64,14 @@ class SmarterRpPlugin(Star):
             max_chars=int(self.config_model.prompt.get("max_memory_chars", 4000)),
             keyword_fallback_enabled=bool(self.config_model.memory.get("keyword_fallback_enabled", True)),
         )
+        self.tool_service = ToolService(
+            lorebook_service=self.lorebooks,
+            lorebook_matcher=self.lorebook_matcher,
+            memory_retriever=self.memory_retriever,
+            mode=str(self.config_model.rewrite.get("tool_mode", "keep_subagents_only")),
+            whitelist=list(self.config_model.rewrite.get("tool_whitelist", [])),
+            preserve_mcp=bool(self.config_model.rewrite.get("preserve_mcp_tools", False)),
+        )
         self.memory_extractor = MemoryExtractor(self.memory, self.history, self.debug)
         self.memory_trigger_policy = MemoryTriggerPolicy(
             auto_enabled=bool(self.config_model.memory.get("auto_enabled", True)),
@@ -79,6 +88,7 @@ class SmarterRpPlugin(Star):
             lorebooks=self.lorebooks,
             lorebook_matcher=self.lorebook_matcher,
             memory_retriever=self.memory_retriever,
+            tool_service=self.tool_service,
         )
         self.webui = WebuiService(
             token_path=data_dir / "webui_token",
@@ -113,6 +123,42 @@ class SmarterRpPlugin(Star):
     async def on_llm_request(self, event, req):
         self.rewriter.rewrite(event, req)
 
+    async def on_using_llm_tool(self, event):
+        self._save_tool_call_snapshot(event, "started")
+
+    async def on_llm_tool_respond(self, event):
+        status = "error" if self._safe_get(event, "error") is not None else "completed"
+        self._save_tool_call_snapshot(event, status)
+
+    @filter.llm_tool(name="sc_roll_dice")
+    async def sc_roll_dice(self, event, expression: str, seed: str | int | None = None):
+        """Roll dice for roleplay scenes.
+        Args:
+            expression(string): Dice expression like d20, 2d6+3, or 2d6-1
+            seed(string): Optional deterministic seed
+        """
+        yield event.plain_result(json.dumps(self.tool_service.roll_dice(expression, seed), ensure_ascii=False))
+
+    @filter.llm_tool(name="sc_query_lorebook")
+    async def sc_query_lorebook(self, event, query: str):
+        """Query active Smarter RP lorebooks.
+        Args:
+            query(string): Search text for lorebook matching
+        """
+        profile, session, character, history_messages = self._tool_context(event)
+        result = self.tool_service.query_lorebook(profile, session, character, query, history_messages)
+        yield event.plain_result(json.dumps(result, ensure_ascii=False))
+
+    @filter.llm_tool(name="sc_search_memory")
+    async def sc_search_memory(self, event, query: str):
+        """Search Smarter RP session memory.
+        Args:
+            query(string): Search text for memory retrieval
+        """
+        _profile, session, _character, history_messages = self._tool_context(event)
+        result = self.tool_service.search_memory(session, query, history_messages, lore_hits=[])
+        yield event.plain_result(json.dumps(result, ensure_ascii=False))
+
     async def on_agent_done(self, event, response):
         session = self.sessions.get_or_create(self._origin(event), None)
         user_text = self._extract_user_text(event)
@@ -123,6 +169,13 @@ class SmarterRpPlugin(Star):
             self.history.append_message(session.id, role="assistant", speaker="Assistant", content=assistant_text)
         if user_text or assistant_text:
             self._schedule_memory_job(session.id)
+
+    def _tool_context(self, event):
+        profile = self.accounts.get_or_create(self.accounts.extract_identity(event))
+        session = self.sessions.get_or_create(self._origin(event), profile.id)
+        character = self.characters.resolve_character(session, profile, self.rewriter._resolve_persona(event))
+        history_messages = self.history.list_messages(session.id)
+        return profile, session, character, history_messages
 
     def _schedule_memory_job(self, session_id: str) -> None:
         if not all(hasattr(self, name) for name in ("_memory_tasks", "memory_extractor", "memory_trigger_policy", "debug")):
@@ -161,6 +214,58 @@ class SmarterRpPlugin(Star):
                         sort_keys=True,
                     ),
                 )
+
+    def _save_tool_call_snapshot(self, event, status: str) -> None:
+        try:
+            session = self.sessions.get_or_create(self._origin(event), None)
+            payload = {
+                "kind": "tool_call",
+                "status": status,
+                "tool_name": self._tool_event_name(event),
+            }
+            if status == "started":
+                payload["arguments_preview"] = self._preview(self._first_event_value(event, ("arguments", "args", "params", "input")))
+            elif status == "error":
+                payload["error_preview"] = self._preview(self._safe_get(event, "error"))
+            else:
+                payload["result_preview"] = self._preview(self._first_event_value(event, ("result", "response", "content", "output")))
+            self.debug.save_snapshot(session.id, "tools", json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        except Exception:
+            return
+
+    def _tool_event_name(self, event) -> str:
+        value = self._first_event_value(event, ("tool_name", "name", "func_name", "function_name"))
+        if value is None:
+            value = self._first_nested_event_value(
+                event,
+                ("tool", "func_tool", "tool_call", "function"),
+                ("tool_name", "name", "func_name", "function_name"),
+            )
+        return str(value) if value is not None else ""
+
+    def _first_event_value(self, event, names: tuple[str, ...]):
+        for name in names:
+            value = self._safe_get(event, name)
+            if value is not None:
+                return value
+        return None
+
+    def _first_nested_event_value(self, event, parent_names: tuple[str, ...], child_names: tuple[str, ...]):
+        for parent_name in parent_names:
+            parent = self._safe_get(event, parent_name)
+            value = self._first_event_value(parent, child_names)
+            if value is not None:
+                return value
+        return None
+
+    def _preview(self, value, limit: int = 500) -> str:
+        try:
+            text = repr(value)
+        except Exception:
+            text = f"<{type(value).__name__}>"
+        if len(text) > limit:
+            return text[:limit] + "...<truncated>"
+        return text
 
     def _resolve_memory_provider(self):
         provider = self._provider_by_id(self.config_model.memory.get("memory_provider_id"))
@@ -207,6 +312,8 @@ class SmarterRpPlugin(Star):
 
     def _origin(self, event) -> str:
         origin = self._string_or_empty(self._safe_get(event, "unified_msg_origin"))
+        if not origin:
+            origin = self._string_or_empty(self._first_nested_event_value(event, ("event", "message_obj"), ("unified_msg_origin",)))
         return origin or "unknown"
 
     def _extract_user_text(self, event) -> str:
@@ -319,6 +426,8 @@ class SmarterRpPlugin(Star):
     def _safe_get(self, obj, attr: str):
         if obj is None:
             return None
+        if isinstance(obj, dict):
+            return obj.get(attr)
         try:
             return getattr(obj, attr, None)
         except Exception:

@@ -14,6 +14,7 @@ from smarter_rp.services.lorebook_service import LorebookService
 from smarter_rp.services.memory_retrieval import MemoryRetriever
 from smarter_rp.services.prompt_builder import PromptBuilder
 from smarter_rp.services.session_service import SessionService
+from smarter_rp.services.tool_service import ToolService
 
 
 _MISSING = object()
@@ -39,6 +40,7 @@ class RequestRewriter:
         lorebooks: LorebookService | None = None,
         lorebook_matcher: LorebookMatcher | None = None,
         memory_retriever: MemoryRetriever | None = None,
+        tool_service: ToolService | None = None,
     ):
         self.accounts = accounts
         self.sessions = sessions
@@ -49,6 +51,7 @@ class RequestRewriter:
         self.lorebooks = lorebooks
         self.lorebook_matcher = lorebook_matcher
         self.memory_retriever = memory_retriever
+        self.tool_service = tool_service
 
     def rewrite(self, event: object, request: object) -> RewriteResult:
         identity = self.accounts.extract_identity(event)
@@ -90,7 +93,10 @@ class RequestRewriter:
             lorebook_buckets=match_result.buckets if match_result is not None else None,
             memory_events=memory_result.hits if memory_result is not None else None,
         )
+        tool_names = self._filter_request_tools(session, request)
         system_prompt = "[Smarter RP]\n" + built_prompt
+        if any(name.startswith("sc_") for name in tool_names):
+            system_prompt += "\n\nAvailable RP tools: " + ", ".join(name for name in tool_names if name.startswith("sc_"))
 
         setattr(request, "system_prompt", system_prompt)
         setattr(request, "contexts", self.prompt_builder.contexts_from_history(history_messages))
@@ -134,6 +140,32 @@ class RequestRewriter:
         self.sessions.save_session_state(session)
         return result
 
+    def _filter_request_tools(self, session: RpSession, request: object) -> list[str]:
+        if self.tool_service is None:
+            return []
+        collected_names: list[str] = []
+        for field_name in self._tool_field_names(request):
+            current_tools = self._safe_getattr(request, field_name)
+            if not isinstance(current_tools, (list, tuple)):
+                payload = {
+                    "kind": "request_tools",
+                    "status": "skipped",
+                    "field": field_name,
+                    "reason": "non_list_tool_field",
+                    "tool_field_type": type(current_tools).__name__,
+                }
+                self.debug.save_snapshot(session.id, "tools", json.dumps(payload, ensure_ascii=False, sort_keys=True))
+                continue
+            final_tools, debug = self.tool_service.filter_tools(list(current_tools))
+            setattr(request, field_name, final_tools)
+            payload = {"kind": "request_tools", "status": "completed", "field": field_name, **debug}
+            self.debug.save_snapshot(session.id, "tools", json.dumps(payload, ensure_ascii=False, sort_keys=True))
+            collected_names.extend(name for name in debug.get("final_names", []) if isinstance(name, str))
+        return collected_names
+
+    def _tool_field_names(self, request: object) -> list[str]:
+        return [name for name in ("tools", "func_tool") if self._safe_getattr(request, name) is not _MISSING]
+
     def _active_lorebook_ids(self, profile: AccountProfile, session: RpSession, character: Character) -> list[str]:
         selected: list[str] = []
         base_ids = session.active_lorebook_ids if session.active_lorebook_ids else profile.default_lorebook_ids
@@ -174,6 +206,7 @@ class RequestRewriter:
             "system_prompt": self._preview(self._safe_getattr(request, "system_prompt")),
             "contexts": self._preview(self._safe_getattr(request, "contexts")),
             "tools": self._preview(self._safe_getattr(request, "tools")),
+            "func_tool": self._preview(self._safe_getattr(request, "func_tool")),
             "image_urls": self._preview(self._safe_getattr(request, "image_urls")),
             "attachments": self._preview(self._safe_getattr(request, "attachments")),
         }

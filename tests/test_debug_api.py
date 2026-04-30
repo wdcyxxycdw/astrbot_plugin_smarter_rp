@@ -114,6 +114,42 @@ def test_debug_memory_without_storage_returns_empty_list():
     assert response.json() == []
 
 
+def test_debug_tools_returns_tool_snapshots(tmp_path: Path):
+    storage = make_storage(tmp_path)
+    service = DebugService(storage)
+    first = service.save_snapshot("session_1", "tools", "old tools")
+    second = service.save_snapshot("session_1", "tools", "new tools")
+    service.save_snapshot("session_1", "memory", "memory")
+    service.save_snapshot("session_2", "tools", "other tools")
+    storage.execute("UPDATE debug_snapshots SET created_at = ? WHERE id = ?", (1, first.id))
+    storage.execute("UPDATE debug_snapshots SET created_at = ? WHERE id = ?", (2, second.id))
+    client = TestClient(create_app(token="secret-token", storage=storage))
+
+    response = client.get(
+        "/api/debug/tools?token=secret-token&session_id=session_1&limit=1"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "id": second.id,
+            "session_id": "session_1",
+            "type": "tools",
+            "content": "new tools",
+            "created_at": 2,
+        }
+    ]
+
+
+def test_debug_tools_without_storage_returns_empty_list():
+    client = TestClient(create_app(token="secret-token"))
+
+    response = client.get("/api/debug/tools?token=secret-token")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_debug_snapshot_get_returns_one_snapshot_or_404(tmp_path: Path):
     storage = make_storage(tmp_path)
     snapshot = DebugService(storage).save_snapshot("session_1", "prompt", "token=secret")

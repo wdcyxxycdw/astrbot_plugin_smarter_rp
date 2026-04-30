@@ -1309,6 +1309,7 @@ function DebugPage() {
   const [selectedSessionId, setSelectedSessionId] = useState('');
   const [snapshots, setSnapshots] = useState([]);
   const [memoryTraces, setMemoryTraces] = useState([]);
+  const [toolTraces, setToolTraces] = useState([]);
   const [loreHits, setLoreHits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -1317,10 +1318,11 @@ function DebugPage() {
     setLoading(true);
     setError('');
     try {
-      const [sessionResult, snapshotResult, memoryResult] = await Promise.allSettled([
+      const [sessionResult, snapshotResult, memoryResult, toolResult] = await Promise.allSettled([
         apiFetch('/api/sessions'),
         apiFetch('/api/debug/snapshots'),
         apiFetch('/api/debug/memory'),
+        apiFetch('/api/debug/tools'),
       ]);
       if (snapshotResult.status === 'rejected') {
         throw snapshotResult.reason;
@@ -1328,11 +1330,15 @@ function DebugPage() {
       if (memoryResult.status === 'rejected') {
         throw memoryResult.reason;
       }
+      if (toolResult.status === 'rejected') {
+        throw toolResult.reason;
+      }
       const nextSessions = sessionResult.status === 'fulfilled' && Array.isArray(sessionResult.value) ? sessionResult.value : [];
       setSessions(nextSessions);
       setSelectedSessionId((current) => (current && nextSessions.some((session) => session.id === current) ? current : nextSessions[0]?.id || ''));
       setSnapshots((snapshotResult.value || []).filter((snapshot) => snapshot.type === 'prompt' || snapshot.type === 'raw_request'));
       setMemoryTraces(memoryResult.value || []);
+      setToolTraces(toolResult.value || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1374,7 +1380,7 @@ function DebugPage() {
         <div>
           <Tag className="phase-tag">Debug API</Tag>
           <Title level={1}>Debug</Title>
-          <Paragraph>Review prompt snapshots, raw request snapshots, memory traces, and lore hits.</Paragraph>
+          <Paragraph>Review prompt snapshots, raw request snapshots, memory traces, tool traces, and lore hits.</Paragraph>
         </div>
         <Button onClick={loadDebug} loading={loading}>Refresh</Button>
       </div>
@@ -1415,6 +1421,26 @@ function DebugPage() {
                   <div className="history-message" key={snapshot.id}>
                     <Space className="history-message-head" wrap>
                       <Tag color="purple">memory</Tag>
+                      <Text className="record-meta">{snapshot.session_id || 'global'} · {snapshot.id}</Text>
+                    </Space>
+                    <pre className="hit-test-output">{snapshot.content}</pre>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+          <Card className="feature-card compact-card" bordered={false}>
+            <Title level={3}>Tool traces</Title>
+            {loading ? (
+              <Spin />
+            ) : toolTraces.length === 0 ? (
+              <Text type="secondary">No tool debug traces.</Text>
+            ) : (
+              <div className="record-list">
+                {toolTraces.map((snapshot) => (
+                  <div className="history-message" key={snapshot.id}>
+                    <Space className="history-message-head" wrap>
+                      <Tag color="cyan">tools</Tag>
                       <Text className="record-meta">{snapshot.session_id || 'global'} · {snapshot.id}</Text>
                     </Space>
                     <pre className="hit-test-output">{snapshot.content}</pre>
