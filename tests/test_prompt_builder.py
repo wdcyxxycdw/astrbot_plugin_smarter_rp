@@ -34,6 +34,7 @@ def test_prompt_builder_includes_recent_rp_history():
         RpMessage(id="m2", session_id="s", role="assistant", speaker="", content="General Kenobi"),
         RpMessage(id="m3", session_id="s", role="system", speaker="Narrator", content="hidden"),
         RpMessage(id="m4", session_id="s", role="user", speaker="Empty", content="   "),
+        RpMessage(id="m5", session_id="s", role="user", speaker="Hidden", content="secret", visible=False),
     ]
 
     prompt = builder.build(
@@ -49,3 +50,4 @@ def test_prompt_builder_includes_recent_rp_history():
     assert "assistant: General Kenobi" in prompt
     assert "hidden" not in prompt
     assert "Empty:" not in prompt
+    assert "secret" not in prompt

@@ -131,6 +131,7 @@ class SessionService:
             last_lore_hits=self._list_value(data.get("last_lore_hits")),
             last_memory_hits=self._list_value(data.get("last_memory_hits")),
             turn_count=int(data.get("turn_count", 0)),
+            memory_processed_turn=int(data.get("memory_processed_turn", 0)),
             created_at=int(row["created_at"]),
             updated_at=int(row["updated_at"]),
         )
@@ -145,6 +146,7 @@ class SessionService:
                 "last_lore_hits": session.last_lore_hits,
                 "last_memory_hits": session.last_memory_hits,
                 "turn_count": session.turn_count,
+                "memory_processed_turn": session.memory_processed_turn,
             }
         )
 

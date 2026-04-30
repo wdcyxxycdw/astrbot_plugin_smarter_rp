@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from smarter_rp.models import AccountProfile, Character, LorebookHit, RpMessage, RpSession
+from smarter_rp.models import AccountProfile, Character, LorebookHit, MemoryHit, MemoryRetrievalResult, RpMessage, RpSession
 from smarter_rp.services.account_service import AccountService
 from smarter_rp.services.character_service import CharacterService
 from smarter_rp.services.debug_service import DebugService
 from smarter_rp.services.history_service import HistoryService
 from smarter_rp.services.lorebook_matcher import LorebookMatcher, LorebookMatchResult
 from smarter_rp.services.lorebook_service import LorebookService
+from smarter_rp.services.memory_retrieval import MemoryRetriever
 from smarter_rp.services.prompt_builder import PromptBuilder
 from smarter_rp.services.session_service import SessionService
 
@@ -36,6 +38,7 @@ class RequestRewriter:
         history: HistoryService | None = None,
         lorebooks: LorebookService | None = None,
         lorebook_matcher: LorebookMatcher | None = None,
+        memory_retriever: MemoryRetriever | None = None,
     ):
         self.accounts = accounts
         self.sessions = sessions
@@ -45,6 +48,7 @@ class RequestRewriter:
         self.history = history
         self.lorebooks = lorebooks
         self.lorebook_matcher = lorebook_matcher
+        self.memory_retriever = memory_retriever
 
     def rewrite(self, event: object, request: object) -> RewriteResult:
         identity = self.accounts.extract_identity(event)
@@ -71,6 +75,12 @@ class RequestRewriter:
         elif self.lorebooks is not None and self.lorebook_matcher is not None and session.last_lore_hits:
             session.last_lore_hits = []
             self.sessions.save_session_state(session)
+        memory_result = self._retrieve_memories(
+            session,
+            current_input,
+            history_messages,
+            match_result.hits if match_result is not None else [],
+        )
         built_prompt = self.prompt_builder.build(
             profile,
             session,
@@ -78,6 +88,7 @@ class RequestRewriter:
             current_input=current_input,
             history_messages=history_messages,
             lorebook_buckets=match_result.buckets if match_result is not None else None,
+            memory_events=memory_result.hits if memory_result is not None else None,
         )
         system_prompt = "[Smarter RP]\n" + built_prompt
 
@@ -108,6 +119,21 @@ class RequestRewriter:
             entries.extend(self.lorebooks.list_entries(lorebook_id))
         return self.lorebook_matcher.match(entries, current_input, history_messages, session, character)
 
+    def _retrieve_memories(
+        self,
+        session: RpSession,
+        current_input: str,
+        history_messages: list[RpMessage],
+        lore_hits: list[LorebookHit],
+    ) -> MemoryRetrievalResult | None:
+        if self.memory_retriever is None:
+            return None
+        result = self.memory_retriever.retrieve(session, current_input, history_messages, lore_hits)
+        self.debug.save_snapshot(session.id, "memory", self._memory_debug_snapshot(result))
+        session.last_memory_hits = self._serialize_memory_hits(result.hits) if result.hits else []
+        self.sessions.save_session_state(session)
+        return result
+
     def _active_lorebook_ids(self, profile: AccountProfile, session: RpSession, character: Character) -> list[str]:
         selected: list[str] = []
         base_ids = session.active_lorebook_ids if session.active_lorebook_ids else profile.default_lorebook_ids
@@ -118,6 +144,16 @@ class RequestRewriter:
 
     def _serialize_lore_hits(self, hits: list[LorebookHit]) -> list[dict[str, Any]]:
         return [asdict(hit) for hit in hits]
+
+    def _serialize_memory_hits(self, hits: list[MemoryHit]) -> list[dict[str, Any]]:
+        return [asdict(hit) for hit in hits]
+
+    def _memory_debug_snapshot(self, result: MemoryRetrievalResult) -> str:
+        debug = {key: value for key, value in result.debug.items() if key != "query"}
+        debug["kind"] = "retrieval"
+        debug["status"] = "completed"
+        debug["query_chars"] = len(str(result.debug.get("query", "")))
+        return json.dumps(debug, ensure_ascii=False, sort_keys=True)
 
     def _resolve_persona(self, event: object) -> object | None:
         for name in ("persona", "astrbot_persona"):

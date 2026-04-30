@@ -120,6 +120,14 @@ SCHEMA_STATEMENTS = (
         ON memories(session_id, type)
     """,
     """
+    CREATE INDEX IF NOT EXISTS idx_memories_session_updated
+        ON memories(session_id, updated_at)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_memories_session_importance
+        ON memories(session_id, importance, updated_at)
+    """,
+    """
     CREATE INDEX IF NOT EXISTS idx_lorebook_entries_lorebook_id
         ON lorebook_entries(lorebook_id)
     """,

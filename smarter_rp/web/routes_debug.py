@@ -47,6 +47,22 @@ def create_debug_router(
             raise HTTPException(status_code=404, detail="snapshot not found")
         return serialize_snapshot(snapshot)
 
+    @router.get("/memory", dependencies=[Depends(auth_dependency)])
+    async def list_memory_snapshots(
+        session_id: str | None = Query(default=None),
+        limit: int = Query(default=20),
+    ):
+        if debug_service is None:
+            return []
+        return [
+            serialize_snapshot(snapshot)
+            for snapshot in debug_service.list_snapshots(
+                limit=limit,
+                session_id=session_id,
+                snapshot_type="memory",
+            )
+        ]
+
     @router.get("/lore-hits", dependencies=[Depends(auth_dependency)])
     async def get_lore_hits(session_id: str | None = Query(default=None)):
         if session_id is None:

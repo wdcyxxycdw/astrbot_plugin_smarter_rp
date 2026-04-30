@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+import json
 import sys
 import types
 from pathlib import Path
@@ -43,6 +44,11 @@ def main_module(monkeypatch):
     monkeypatch.setitem(sys.modules, "astrbot.api.star", star_module)
     sys.modules.pop("main", None)
     return importlib.import_module("main")
+
+
+class FailingMemoryExtractor:
+    def run_if_needed(self, *_args):
+        raise RuntimeError("boom")
 
 
 class FakeRewriter:
@@ -159,6 +165,66 @@ def test_on_llm_request_session_paused_passes_unchanged(main_module, tmp_path):
     assert req.prompt == "Hello"
     assert req.tools == [{"name": "transfer_to_agent"}]
     assert req.image_urls == ["img"]
+
+
+class FakeProvider:
+    def __init__(self):
+        self.prompts = []
+
+    def complete(self, prompt):
+        self.prompts.append(prompt)
+        return '{"summary":"sum","state":{},"events":[]}'
+
+
+def test_resolve_memory_provider_uses_configured_provider(main_module, monkeypatch, tmp_path):
+    monkeypatch.setattr(main_module.SmarterRpPlugin, "_resolve_data_dir", lambda self: tmp_path)
+    provider = FakeProvider()
+    context = SimpleNamespace(provider_manager=SimpleNamespace(providers={"memory_provider": provider}))
+    plugin = main_module.SmarterRpPlugin(
+        context,
+        {"webui": {"enabled": False}, "memory": {"memory_provider_id": "memory_provider"}},
+    )
+
+    resolved = plugin._resolve_memory_provider()
+
+    assert resolved is not None
+    assert resolved.complete("prompt") == '{"summary":"sum","state":{},"events":[]}'
+    assert provider.prompts == ["prompt"]
+
+
+def test_forget_memory_task_does_not_remove_newer_task(main_module, monkeypatch, tmp_path):
+    monkeypatch.setattr(main_module.SmarterRpPlugin, "_resolve_data_dir", lambda self: tmp_path)
+    plugin = main_module.SmarterRpPlugin(object(), {"webui": {"enabled": False}})
+    old_task = SimpleNamespace()
+    new_task = SimpleNamespace()
+    plugin._memory_tasks["session_1"] = new_task
+
+    plugin._forget_memory_task("session_1", old_task)
+
+    assert plugin._memory_tasks["session_1"] is new_task
+
+
+def test_schedule_memory_job_ignores_stopping_plugin(main_module, monkeypatch, tmp_path):
+    monkeypatch.setattr(main_module.SmarterRpPlugin, "_resolve_data_dir", lambda self: tmp_path)
+    plugin = main_module.SmarterRpPlugin(object(), {"webui": {"enabled": False}})
+    plugin._stopping = True
+
+    plugin._schedule_memory_job("session_1")
+
+    assert plugin._memory_tasks == {}
+
+
+def test_memory_background_error_snapshot_uses_json_envelope(main_module, monkeypatch, tmp_path):
+    monkeypatch.setattr(main_module.SmarterRpPlugin, "_resolve_data_dir", lambda self: tmp_path)
+    plugin = main_module.SmarterRpPlugin(object(), {"webui": {"enabled": False}})
+    plugin.memory_extractor = FailingMemoryExtractor()
+
+    asyncio.run(plugin._run_memory_job("session_1"))
+
+    snapshots = plugin.debug.list_snapshots(session_id="session_1", snapshot_type="memory")
+    assert snapshots
+    payload = json.loads(snapshots[0].content)
+    assert payload == {"error": "boom", "kind": "background", "status": "error"}
 
 
 def test_init_wires_rewriter_services_with_storage(main_module, monkeypatch, tmp_path):

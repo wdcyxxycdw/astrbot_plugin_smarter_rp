@@ -45,21 +45,6 @@ const menuItems = [
   { key: 'debug', icon: <BugOutlined />, label: 'Debug' },
 ];
 
-const pageCopy = {
-  memory: {
-    tag: 'Phase 1 shell',
-    title: 'Memory will surface session context safely',
-    description:
-      'Memory inspection is reserved for the upcoming backend integration. This placeholder keeps the WebUI route visible without fetching data.',
-  },
-  debug: {
-    tag: 'Phase 1 shell',
-    title: 'Debug signals will appear here',
-    description:
-      'Debug output and diagnostics stay behind this pane while token handling and API access are finalized.',
-  },
-};
-
 const characterTextFields = [
   ['name', 'Name'],
   ['system_prompt', 'System prompt'],
@@ -212,28 +197,28 @@ function DashboardPage() {
       description: 'Smarter RP is designed to start active by default for configured conversations.',
     },
     {
-      title: 'Accounts',
-      value: 'Ready',
+      title: 'Characters',
+      value: 'API-backed',
       tone: 'blue',
-      icon: <UserOutlined />,
-      description: 'Per-account enablement, default character, and default lorebooks will be managed here.',
+      icon: <UserSwitchOutlined />,
+      description: 'Character profiles, persona prompts, and linked lorebooks are managed from the WebUI.',
     },
     {
-      title: 'Sessions',
-      value: 'Prepared',
+      title: 'Memory',
+      value: 'Automatic',
       tone: 'gold',
-      icon: <TeamOutlined />,
-      description: 'Active chat sessions will show pause state, character binding, and lorebook binding.',
+      icon: <DatabaseOutlined />,
+      description: 'Session summaries, structured state, retrieved memories, and debug traces are available behind token auth.',
     },
   ];
 
   return (
     <section className="page-panel dashboard-panel">
       <div className="hero-copy">
-        <Tag className="phase-tag">Phase 1</Tag>
+        <Tag className="phase-tag">WebUI</Tag>
         <Title level={1}>Smarter RP control room</Title>
         <Paragraph>
-          A static WebUI shell for account defaults, session state, and upcoming authenticated management flows. No API calls are made in this phase.
+          Manage characters, lorebooks, sessions, memory, and debug traces through token-protected API-backed panels.
         </Paragraph>
       </div>
       <Row gutter={[18, 18]} className="status-grid">
@@ -261,11 +246,11 @@ function AccountsPage() {
         <Tag className="phase-tag">Accounts</Tag>
         <Title level={1}>Account defaults without surprises</Title>
         <Paragraph>
-          This page will let operators enable or disable Smarter RP per account while preserving the default-on behavior for normal use.
+          Account APIs are active for per-account defaults while preserving default-on behavior for normal use.
         </Paragraph>
       </div>
       <Card className="feature-card" bordered={false}>
-        <Title level={3}>Planned controls</Title>
+        <Title level={3}>Account controls</Title>
         <ul className="feature-list">
           <li>Toggle Smarter RP for an account without affecting other accounts.</li>
           <li>Choose the account default character for new roleplay sessions.</li>
@@ -1137,12 +1122,331 @@ function SessionsPage() {
   );
 }
 
-function PlaceholderPage({ page }) {
+function MemoryPage() {
+  const [sessions, setSessions] = useState([]);
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function loadSessions() {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await apiFetch('/api/memory/sessions');
+      const nextSessions = Array.isArray(data) ? data : [];
+      setSessions(nextSessions);
+      setSelectedSessionId((current) => (nextSessions.some((session) => session.id === current) ? current : nextSessions[0]?.id || null));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadDetail(sessionId) {
+    if (!sessionId) {
+      setDetail(null);
+      return;
+    }
+    setDetailLoading(true);
+    setError('');
+    try {
+      setDetail(await apiFetch(`/api/memory/sessions/${sessionId}`));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  useEffect(() => {
+    loadDetail(selectedSessionId);
+  }, [selectedSessionId]);
+
+  async function deleteMemory(memoryId) {
+    setError('');
+    try {
+      await apiFetch(`/api/memory/memories/${memoryId}`, { method: 'DELETE' });
+      await loadDetail(selectedSessionId);
+      await loadSessions();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function clearSessionMemory() {
+    if (!selectedSessionId) return;
+    setError('');
+    try {
+      await apiFetch(`/api/memory/sessions/${selectedSessionId}`, { method: 'DELETE' });
+      await loadDetail(selectedSessionId);
+      await loadSessions();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  const status = detail?.status || sessions.find((session) => session.id === selectedSessionId);
+  const memories = detail?.memories || [];
+
+  return (
+    <section className="page-panel management-panel">
+      <div className="management-heading">
+        <div>
+          <Tag className="phase-tag">Memory API</Tag>
+          <Title level={1}>Memory</Title>
+          <Paragraph>Inspect session summaries, structured state, retrieval hits, and event memories.</Paragraph>
+        </div>
+        <Button onClick={loadSessions} loading={loading}>Refresh</Button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      <Row gutter={[18, 18]}>
+        <Col xs={24} lg={9}>
+          <Card className="feature-card list-card" bordered={false}>
+            <Title level={3}>Memory sessions</Title>
+            {loading ? (
+              <Spin />
+            ) : sessions.length === 0 ? (
+              <Text type="secondary">No memory sessions yet.</Text>
+            ) : (
+              <div className="record-list">
+                {sessions.map((session) => (
+                  <button
+                    className={`record-item session-item ${selectedSessionId === session.id ? 'selected' : ''}`}
+                    key={session.id}
+                    type="button"
+                    onClick={() => setSelectedSessionId(session.id)}
+                  >
+                    <div>
+                      <Text strong>{session.unified_msg_origin || session.id}</Text>
+                      <Text className="record-meta">{session.id}</Text>
+                      <Text className="record-meta">Memories: {session.memory_count || 0} · Turns: {session.turn_count || 0}</Text>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} lg={15}>
+          <Card className="feature-card form-card" bordered={false}>
+            <div className="section-heading-row">
+              <Title level={3}>Session memory state</Title>
+              <Space wrap>
+                <Button onClick={() => loadDetail(selectedSessionId)} loading={detailLoading} disabled={!selectedSessionId}>Refresh detail</Button>
+                <Popconfirm title="Clear all memory for this session?" onConfirm={clearSessionMemory}>
+                  <Button danger disabled={!selectedSessionId}>Clear session memory</Button>
+                </Popconfirm>
+              </Space>
+            </div>
+            {!status ? (
+              <Text type="secondary">Select a session to inspect memory.</Text>
+            ) : detailLoading ? (
+              <Spin />
+            ) : (
+              <Space direction="vertical" className="session-controls" size="middle">
+                <div>
+                  <Text strong>{status.unified_msg_origin || status.id}</Text>
+                  <Text className="record-meta">{status.id}</Text>
+                </div>
+                <div>
+                  <Text className="control-label">Summary</Text>
+                  <Paragraph>{status.summary || 'No summary stored.'}</Paragraph>
+                </div>
+                <div>
+                  <Text className="control-label">State JSON</Text>
+                  <pre className="hit-test-output">{JSON.stringify(status.state || {}, null, 2)}</pre>
+                </div>
+                <div>
+                  <Text className="control-label">Last memory hits JSON</Text>
+                  <pre className="hit-test-output">{JSON.stringify(status.last_memory_hits || [], null, 2)}</pre>
+                </div>
+              </Space>
+            )}
+          </Card>
+          <Card className="feature-card history-card" bordered={false}>
+            <Title level={3}>Event memories</Title>
+            {detailLoading ? (
+              <Spin />
+            ) : memories.length === 0 ? (
+              <Text type="secondary">No event memories for this session.</Text>
+            ) : (
+              <div className="record-list">
+                {memories.map((memory) => (
+                  <div className="record-item" key={memory.id}>
+                    <div>
+                      <Space wrap>
+                        <Text strong>{memory.content}</Text>
+                        <Tag color="green">{memory.type}</Tag>
+                        <Tag>importance {memory.importance}</Tag>
+                        <Tag>confidence {memory.confidence}</Tag>
+                      </Space>
+                      <Text className="record-meta">{memory.id}</Text>
+                      <Text className="record-meta">turns {memory.turn_range?.join('-') || 'n/a'} · sources {(memory.source_message_ids || []).join(', ') || 'none'}</Text>
+                    </div>
+                    <Popconfirm title="Delete this memory?" onConfirm={() => deleteMemory(memory.id)}>
+                      <Button size="small" danger>Delete</Button>
+                    </Popconfirm>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </Col>
+      </Row>
+    </section>
+  );
+}
+
+function DebugPage() {
+  const [sessions, setSessions] = useState([]);
+  const [selectedSessionId, setSelectedSessionId] = useState('');
+  const [snapshots, setSnapshots] = useState([]);
+  const [memoryTraces, setMemoryTraces] = useState([]);
+  const [loreHits, setLoreHits] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function loadDebug() {
+    setLoading(true);
+    setError('');
+    try {
+      const [sessionResult, snapshotResult, memoryResult] = await Promise.allSettled([
+        apiFetch('/api/sessions'),
+        apiFetch('/api/debug/snapshots'),
+        apiFetch('/api/debug/memory'),
+      ]);
+      if (snapshotResult.status === 'rejected') {
+        throw snapshotResult.reason;
+      }
+      if (memoryResult.status === 'rejected') {
+        throw memoryResult.reason;
+      }
+      const nextSessions = sessionResult.status === 'fulfilled' && Array.isArray(sessionResult.value) ? sessionResult.value : [];
+      setSessions(nextSessions);
+      setSelectedSessionId((current) => (current && nextSessions.some((session) => session.id === current) ? current : nextSessions[0]?.id || ''));
+      setSnapshots((snapshotResult.value || []).filter((snapshot) => snapshot.type === 'prompt' || snapshot.type === 'raw_request'));
+      setMemoryTraces(memoryResult.value || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadLoreHits(sessionId) {
+    if (!sessionId) {
+      setLoreHits([]);
+      return;
+    }
+    setError('');
+    try {
+      const data = await apiFetch(`/api/debug/lore-hits?session_id=${encodeURIComponent(sessionId)}`);
+      setLoreHits(data?.hits || []);
+    } catch (err) {
+      setError(err.message);
+      setLoreHits([]);
+    }
+  }
+
+  useEffect(() => {
+    loadDebug();
+  }, []);
+
+  useEffect(() => {
+    loadLoreHits(selectedSessionId);
+  }, [selectedSessionId]);
+
+  const sessionOptions = sessions.map((session) => ({
+    value: session.id,
+    label: session.unified_msg_origin ? `${session.unified_msg_origin} (${session.id})` : session.id,
+  }));
+
+  return (
+    <section className="page-panel management-panel">
+      <div className="management-heading">
+        <div>
+          <Tag className="phase-tag">Debug API</Tag>
+          <Title level={1}>Debug</Title>
+          <Paragraph>Review prompt snapshots, raw request snapshots, memory traces, and lore hits.</Paragraph>
+        </div>
+        <Button onClick={loadDebug} loading={loading}>Refresh</Button>
+      </div>
+      {error && <div className="error-banner">{error}</div>}
+      <Row gutter={[18, 18]}>
+        <Col xs={24} lg={12}>
+          <Card className="feature-card list-card" bordered={false}>
+            <Title level={3}>Prompt / raw snapshots</Title>
+            {loading ? (
+              <Spin />
+            ) : snapshots.length === 0 ? (
+              <Text type="secondary">No prompt or raw request snapshots.</Text>
+            ) : (
+              <div className="record-list">
+                {snapshots.map((snapshot) => (
+                  <div className="history-message" key={snapshot.id}>
+                    <Space className="history-message-head" wrap>
+                      <Tag color={snapshot.type === 'prompt' ? 'green' : 'blue'}>{snapshot.type}</Tag>
+                      <Text className="record-meta">{snapshot.session_id || 'global'} · {snapshot.id}</Text>
+                    </Space>
+                    <pre className="hit-test-output">{snapshot.content}</pre>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card className="feature-card list-card" bordered={false}>
+            <Title level={3}>Memory traces</Title>
+            {loading ? (
+              <Spin />
+            ) : memoryTraces.length === 0 ? (
+              <Text type="secondary">No memory debug traces.</Text>
+            ) : (
+              <div className="record-list">
+                {memoryTraces.map((snapshot) => (
+                  <div className="history-message" key={snapshot.id}>
+                    <Space className="history-message-head" wrap>
+                      <Tag color="purple">memory</Tag>
+                      <Text className="record-meta">{snapshot.session_id || 'global'} · {snapshot.id}</Text>
+                    </Space>
+                    <pre className="hit-test-output">{snapshot.content}</pre>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+          <Card className="feature-card compact-card" bordered={false}>
+            <Title level={3}>Lore hits</Title>
+            <Select
+              allowClear
+              className="full-width-input"
+              placeholder="Select session"
+              options={sessionOptions}
+              value={selectedSessionId || undefined}
+              onChange={(value) => setSelectedSessionId(value || '')}
+            />
+            <pre className="hit-test-output">{JSON.stringify(loreHits, null, 2)}</pre>
+          </Card>
+        </Col>
+      </Row>
+    </section>
+  );
+}
+
+function PlaceholderPage() {
   return (
     <section className="page-panel placeholder-panel">
-      <Tag className="phase-tag">{page.tag}</Tag>
-      <Title level={1}>{page.title}</Title>
-      <Paragraph>{page.description}</Paragraph>
+      <Tag className="phase-tag">WebUI</Tag>
+      <Title level={1}>Page unavailable</Title>
+      <Paragraph>Select a management area from the sidebar.</Paragraph>
     </section>
   );
 }
@@ -1166,7 +1470,13 @@ function App() {
     if (selectedPage === 'sessions') {
       return <SessionsPage />;
     }
-    return <PlaceholderPage page={pageCopy[selectedPage]} />;
+    if (selectedPage === 'memory') {
+      return <MemoryPage />;
+    }
+    if (selectedPage === 'debug') {
+      return <DebugPage />;
+    }
+    return <PlaceholderPage />;
   }, [selectedPage]);
 
   return (

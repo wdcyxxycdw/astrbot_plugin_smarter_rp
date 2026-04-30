@@ -55,6 +55,7 @@ class RpSession:
     last_lore_hits: list[dict[str, Any]] = field(default_factory=list)
     last_memory_hits: list[dict[str, Any]] = field(default_factory=list)
     turn_count: int = 0
+    memory_processed_turn: int = 0
     created_at: int = 0
     updated_at: int = 0
 
@@ -135,6 +136,55 @@ class LorebookHit:
     recursion_parent_id: str | None = None
     trimmed: bool = False
     filter_reason: str = ""
+
+
+@dataclass(slots=True)
+class Memory:
+    id: str
+    session_id: str
+    type: Literal["event", "state_snapshot", "note"]
+    content: str
+    importance: int
+    confidence: float
+    source_message_ids: list[str] = field(default_factory=list)
+    turn_range: tuple[int, int] | None = None
+    embedding_id: str | None = None
+    embedding_version: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: int = 0
+    updated_at: int = 0
+
+
+@dataclass(slots=True)
+class MemoryHit:
+    memory_id: str
+    content: str
+    importance: int
+    confidence: float
+    score: float
+    reason: str
+    source_message_ids: list[str] = field(default_factory=list)
+    turn_range: tuple[int, int] | None = None
+    trimmed: bool = False
+    filter_reason: str = ""
+
+
+@dataclass(slots=True)
+class MemoryJobResult:
+    session_id: str
+    triggered: bool
+    reason: str
+    summary_updated: bool = False
+    state_updated: bool = False
+    memories_created: int = 0
+    debug: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class MemoryRetrievalResult:
+    hits: list[MemoryHit] = field(default_factory=list)
+    filtered: list[MemoryHit] = field(default_factory=list)
+    debug: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

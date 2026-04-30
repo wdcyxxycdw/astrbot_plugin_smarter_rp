@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,9 @@ from smarter_rp.services.debug_service import DebugService
 from smarter_rp.services.history_service import HistoryService
 from smarter_rp.services.lorebook_matcher import LorebookMatcher
 from smarter_rp.services.lorebook_service import LorebookService
+from smarter_rp.services.memory_extractor import AstrBotMemoryProvider, MemoryExtractor, MemoryTriggerPolicy
+from smarter_rp.services.memory_retrieval import MemoryRetriever
+from smarter_rp.services.memory_service import MemoryService
 from smarter_rp.services.prompt_builder import PromptBuilder
 from smarter_rp.services.request_rewriter import RequestRewriter
 from smarter_rp.services.session_service import SessionService
@@ -49,6 +53,22 @@ class SmarterRpPlugin(Star):
             max_prompt_chars=int(self.config_model.prompt.get("max_prompt_chars", 4000))
         )
         self.debug = DebugService(self.storage)
+        self.memory = MemoryService(self.storage, self.sessions)
+        self.memory_retriever = MemoryRetriever(
+            self.memory,
+            vector_top_k=int(self.config_model.memory.get("vector_top_k", 30)),
+            rerank_top_k=int(self.config_model.memory.get("rerank_top_k", 10)),
+            min_importance=int(self.config_model.memory.get("min_importance", 2)),
+            max_hits=int(self.config_model.memory.get("max_injected_events", 10)),
+            max_chars=int(self.config_model.prompt.get("max_memory_chars", 4000)),
+            keyword_fallback_enabled=bool(self.config_model.memory.get("keyword_fallback_enabled", True)),
+        )
+        self.memory_extractor = MemoryExtractor(self.memory, self.history, self.debug)
+        self.memory_trigger_policy = MemoryTriggerPolicy(
+            auto_enabled=bool(self.config_model.memory.get("auto_enabled", True)),
+            every_turns=int(self.config_model.memory.get("every_turns", 6)),
+            history_chars_threshold=int(self.config_model.memory.get("history_chars_threshold", 12000)),
+        )
         self.rewriter = RequestRewriter(
             accounts=self.accounts,
             sessions=self.sessions,
@@ -58,6 +78,7 @@ class SmarterRpPlugin(Star):
             history=self.history,
             lorebooks=self.lorebooks,
             lorebook_matcher=self.lorebook_matcher,
+            memory_retriever=self.memory_retriever,
         )
         self.webui = WebuiService(
             token_path=data_dir / "webui_token",
@@ -66,14 +87,22 @@ class SmarterRpPlugin(Star):
             storage=self.storage,
         )
         self._webui_task: asyncio.Task | None = None
+        self._memory_tasks: dict[str, asyncio.Task] = {}
+        self._stopping = False
 
     async def initialize(self):
+        self._stopping = False
         if self.config_model.webui["enabled"]:
             self.webui.ensure_token()
             self._webui_task = asyncio.create_task(self.webui.start())
 
     async def terminate(self):
+        self._stopping = True
         self.webui.request_stop()
+        memory_tasks = list(self._memory_tasks.values())
+        if memory_tasks:
+            await asyncio.gather(*memory_tasks, return_exceptions=True)
+        self._memory_tasks.clear()
         if self._webui_task is not None:
             self._webui_task.cancel()
             try:
@@ -92,6 +121,89 @@ class SmarterRpPlugin(Star):
             self.history.append_message(session.id, role="user", speaker="User", content=user_text)
         if assistant_text:
             self.history.append_message(session.id, role="assistant", speaker="Assistant", content=assistant_text)
+        if user_text or assistant_text:
+            self._schedule_memory_job(session.id)
+
+    def _schedule_memory_job(self, session_id: str) -> None:
+        if not all(hasattr(self, name) for name in ("_memory_tasks", "memory_extractor", "memory_trigger_policy", "debug")):
+            return
+        if getattr(self, "_stopping", False):
+            return
+        existing = self._memory_tasks.get(session_id)
+        if existing is not None and not existing.done():
+            return
+        task = asyncio.create_task(self._run_memory_job(session_id))
+        self._memory_tasks[session_id] = task
+        task.add_done_callback(lambda done_task: self._forget_memory_task(session_id, done_task))
+
+    def _forget_memory_task(self, session_id: str, done_task: asyncio.Task) -> None:
+        if self._memory_tasks.get(session_id) is done_task:
+            self._memory_tasks.pop(session_id, None)
+
+    async def _run_memory_job(self, session_id: str) -> None:
+        if getattr(self, "_stopping", False):
+            return
+        try:
+            await asyncio.to_thread(
+                self.memory_extractor.run_if_needed,
+                session_id,
+                self.memory_trigger_policy,
+                self._resolve_memory_provider(),
+            )
+        except Exception as exc:
+            if not getattr(self, "_stopping", False):
+                self.debug.save_snapshot(
+                    session_id,
+                    "memory",
+                    json.dumps(
+                        {"kind": "background", "status": "error", "error": str(exc)},
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                )
+
+    def _resolve_memory_provider(self):
+        provider = self._provider_by_id(self.config_model.memory.get("memory_provider_id"))
+        if provider is None:
+            provider = self._provider_by_id(self.config_model.memory.get("summary_provider_id"))
+        if provider is None:
+            provider = self._current_provider()
+        return AstrBotMemoryProvider(provider) if provider is not None else None
+
+    def _provider_by_id(self, provider_id) -> object | None:
+        provider_id = self._string_or_empty(provider_id)
+        if not provider_id:
+            return None
+        provider_manager = self._provider_manager()
+        if provider_manager is None:
+            return None
+        for method_name in ("get_provider_by_id", "get_provider", "get", "find_provider"):
+            method = self._safe_get(provider_manager, method_name)
+            if callable(method):
+                try:
+                    provider = method(provider_id)
+                except Exception:
+                    provider = None
+                if provider is not None:
+                    return provider
+        providers = self._safe_get(provider_manager, "providers")
+        if isinstance(providers, dict):
+            return providers.get(provider_id)
+        return None
+
+    def _current_provider(self) -> object | None:
+        provider_manager = self._provider_manager()
+        if provider_manager is None:
+            return None
+        for name in ("curr_provider", "current_provider", "provider"):
+            provider = self._safe_get(provider_manager, name)
+            if provider is not None:
+                return provider
+        return None
+
+    def _provider_manager(self) -> object | None:
+        context = self._safe_get(self, "context")
+        return self._safe_get(context, "provider_manager")
 
     def _origin(self, event) -> str:
         origin = self._string_or_empty(self._safe_get(event, "unified_msg_origin"))

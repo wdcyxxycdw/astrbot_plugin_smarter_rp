@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from smarter_rp.models import AccountProfile, Character, RpMessage, RpSession
+from smarter_rp.models import AccountProfile, Character, MemoryHit, RpMessage, RpSession
 
 
 class PromptBuilder:
@@ -17,6 +17,7 @@ class PromptBuilder:
         current_input: str,
         history_messages: list[RpMessage] | None = None,
         lorebook_buckets: dict[str, str] | None = None,
+        memory_events: list[MemoryHit] | None = None,
     ) -> str:
         lorebook_buckets = lorebook_buckets or {}
         blocks = [
@@ -26,17 +27,11 @@ class PromptBuilder:
         blocks.extend(self._lorebook_blocks(lorebook_buckets, "before_character"))
         blocks.append(self._block("Character", self._character_text(character)))
         blocks.extend(self._lorebook_blocks(lorebook_buckets, "after_character"))
-        blocks.append(self._block("Memory", "No memory entries selected in Phase 1."))
+        blocks.extend(self._memory_blocks(session, memory_events))
         blocks.extend(self._lorebook_blocks(lorebook_buckets, "before_history"))
         blocks.append(self._block("Recent RP History", self._history_text(history_messages)))
         blocks.extend(self._lorebook_blocks(lorebook_buckets, "in_history"))
         blocks.extend(self._lorebook_blocks(lorebook_buckets, "after_history"))
-        blocks.extend(
-            [
-                self._block("Session Summary", session.summary),
-                self._block("Session State", self._format_mapping(session.state)),
-            ]
-        )
         blocks.extend(self._lorebook_blocks(lorebook_buckets, "post_history"))
         blocks.append(self._block("Current Input", current_input))
         return self._fit_to_budget("\n\n".join(blocks), current_input)
@@ -45,7 +40,7 @@ class PromptBuilder:
         contexts = []
         for message in history_messages or []:
             content = message.content.strip()
-            if message.role in ("user", "assistant") and content:
+            if message.visible and message.role in ("user", "assistant") and content:
                 contexts.append({"role": message.role, "content": content})
         return contexts
 
@@ -58,11 +53,26 @@ class PromptBuilder:
             return []
         return [self._block(f"Lorebook: {position}", content)]
 
+    def _memory_blocks(self, session: RpSession, memory_events: list[MemoryHit] | None) -> list[str]:
+        return [
+            self._block("Session Summary", session.summary),
+            self._block("Session State", self._format_mapping(session.state)),
+            self._block("Relevant Event Memories", self._memory_events_text(memory_events)),
+        ]
+
+    def _memory_events_text(self, memory_events: list[MemoryHit] | None) -> str:
+        lines = []
+        for hit in memory_events or []:
+            content = hit.content.strip()
+            if content:
+                lines.append(f"- {content}")
+        return "\n".join(lines) or "No relevant event memories selected."
+
     def _history_text(self, history_messages: list[RpMessage] | None) -> str:
         lines = []
         for message in history_messages or []:
             content = message.content.strip()
-            if message.role in ("user", "assistant") and content:
+            if message.visible and message.role in ("user", "assistant") and content:
                 speaker = message.speaker.strip() or message.role
                 lines.append(f"{speaker}: {content}")
         return "\n".join(lines) or "No recent RP history selected."
