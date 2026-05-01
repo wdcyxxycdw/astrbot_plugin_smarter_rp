@@ -358,7 +358,10 @@ class SmarterRpPlugin(Star):
             if not self._is_private_event(event):
                 yield event.plain_result("请在私聊中使用 /rp webui 获取 WebUI 管理链接。")
                 return
-            yield event.plain_result(f"Smarter RP WebUI: {self.webui.url_for_display()}")
+            message = f"Smarter RP WebUI: {self.webui.url_for_display()}"
+            if self.webui.host == "0.0.0.0":
+                message += "\n警告：绑定 0.0.0.0 会暴露到可访问网络，请只在可信网络中使用。"
+            yield event.plain_result(message)
             return
         if command == "pause":
             session = self.sessions.get_or_create(event.unified_msg_origin, None)

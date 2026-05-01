@@ -45,6 +45,14 @@ def test_ensure_token_replaces_blank_token_file(tmp_path: Path):
 def test_url_for_display_uses_host_port_and_token(tmp_path: Path):
     token_path = tmp_path / "token.txt"
     token_path.write_text("display-token", encoding="utf-8")
+    service = WebuiService(token_path, "127.0.0.1", 12345)
+
+    assert service.url_for_display() == "http://127.0.0.1:12345/?token=display-token"
+
+
+def test_url_for_display_keeps_all_interface_url_parseable(tmp_path: Path):
+    token_path = tmp_path / "token.txt"
+    token_path.write_text("display-token", encoding="utf-8")
     service = WebuiService(token_path, "0.0.0.0", 12345)
 
     assert service.url_for_display() == "http://0.0.0.0:12345/?token=display-token"

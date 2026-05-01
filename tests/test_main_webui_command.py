@@ -19,10 +19,11 @@ class FakeEvent:
 
 
 class FakeWebui:
-    def __init__(self, port, url="http://127.0.0.1:8000/?token=secret-token", should_raise=False):
+    def __init__(self, port, url="http://127.0.0.1:8000/?token=secret-token", should_raise=False, host="127.0.0.1"):
         self.port = port
         self.url = url
         self.should_raise = should_raise
+        self.host = host
         self.called = False
 
     def url_for_display(self):
@@ -143,6 +144,20 @@ def test_webui_command_private_event_with_fixed_port_returns_full_url(main_modul
     assert fake_webui.called is True
 
 
+def test_webui_command_warns_for_all_interface_without_polluting_url(main_module):
+    fake_webui = FakeWebui(8000, url="http://0.0.0.0:8000/?token=secret-token", host="0.0.0.0")
+    plugin = make_plugin(main_module, webui=fake_webui)
+    event = FakeEvent(is_private=True)
+
+    results = run_webui_command(plugin, event)
+
+    assert results == [
+        "Smarter RP WebUI: http://0.0.0.0:8000/?token=secret-token\n警告：绑定 0.0.0.0 会暴露到可访问网络，请只在可信网络中使用。"
+    ]
+    assert results[0].split("\n")[0].endswith("token=secret-token")
+    assert fake_webui.called is True
+
+
 def test_webui_command_port_zero_does_not_return_url_even_for_private_event(main_module):
     fake_webui = FakeWebui(0, should_raise=True)
     plugin = make_plugin(main_module, webui=fake_webui)
@@ -197,3 +212,14 @@ def test_debug_command_reports_no_latest_prompt_snapshot(main_module):
     assert results == [
         "Smarter RP debug: paused=no; latest prompt snapshot=none. Open WebUI Debug page for details."
     ]
+
+
+def test_unknown_rp_command_lists_only_supported_command_surface(main_module):
+    plugin = make_plugin(main_module)
+    event = FakeEvent(unified_msg_origin="origin:1")
+
+    results = run_rp_command(plugin, event, "unknown")
+
+    assert results == ["Available commands: /rp status, /rp webui, /rp pause, /rp resume, /rp debug"]
+    for unsupported in ("memory", "lorebook", "character", "account", "tool"):
+        assert f"/rp {unsupported}" not in results[0]
