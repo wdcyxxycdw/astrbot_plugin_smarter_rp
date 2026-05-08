@@ -4,7 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Smarter RP WebUI</title>
-    <script type="module" crossorigin src="./assets/index-CqQ1u5po.js"></script>
+    <script>
+      window.__smarterRpBootError = function (error) {
+        var root = document.getElementById('root');
+        if (!root) return;
+        var message = error && (error.stack || error.message) ? (error.stack || error.message) : String(error);
+        root.innerHTML = '<div class="boot-error"><strong>Smarter RP WebUI failed to load.</strong><pre>' + message + '</pre></div>';
+      };
+      window.addEventListener('error', function (event) {
+        window.__smarterRpBootError(event.error || event.message || 'Script failed to load.');
+      });
+      window.addEventListener('unhandledrejection', function (event) {
+        window.__smarterRpBootError(event.reason || 'Unhandled promise rejection.');
+      });
+    </script>
+    <script type="module" crossorigin src="./assets/index-CUvYgV-b.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-Cg_7bmN4.css">
   </head>
   <body>

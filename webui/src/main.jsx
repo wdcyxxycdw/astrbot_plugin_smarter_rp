@@ -5,6 +5,10 @@ import './styles.css';
 import App from './App.jsx';
 
 function showBootError(error) {
+  if (typeof window.__smarterRpBootError === 'function') {
+    window.__smarterRpBootError(error);
+    return;
+  }
   const root = document.getElementById('root');
   if (!root) {
     return;
@@ -12,9 +16,6 @@ function showBootError(error) {
   const message = error instanceof Error ? error.stack || error.message : String(error);
   root.innerHTML = `<div class="boot-error"><strong>Smarter RP WebUI failed to load.</strong><pre>${message}</pre></div>`;
 }
-
-window.addEventListener('error', (event) => showBootError(event.error || event.message));
-window.addEventListener('unhandledrejection', (event) => showBootError(event.reason));
 
 try {
   createRoot(document.getElementById('root')).render(
