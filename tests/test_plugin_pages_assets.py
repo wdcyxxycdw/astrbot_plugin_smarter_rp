@@ -35,6 +35,32 @@ def test_app_imports_react_binding_for_jsx_runtime_output():
     assert "import React," in source
 
 
+def test_webui_primary_copy_is_chinese():
+    app_source = (ROOT / "webui" / "src" / "App.jsx").read_text(encoding="utf-8")
+    html_source = (ROOT / "webui" / "index.html").read_text(encoding="utf-8")
+    metadata = (ROOT / "metadata.yaml").read_text(encoding="utf-8")
+
+    assert "控制台" in app_source
+    assert "角色" in app_source
+    assert "世界书" in app_source
+    assert "记忆" in app_source
+    assert "正在加载 WebUI" in html_source
+    assert "管理 Smarter RP" in metadata
+
+    assert "label: 'Dashboard'" not in app_source
+    assert "label: 'Characters'" not in app_source
+    assert "label: 'Lorebooks'" not in app_source
+    assert "Loading WebUI" not in html_source
+    assert "Manage Smarter RP" not in metadata
+
+
+def test_webui_configures_antd_chinese_locale():
+    source = (ROOT / "webui" / "src" / "App.jsx").read_text(encoding="utf-8")
+
+    assert "antd/locale/zh_CN" in source
+    assert "locale={zhCN}" in source
+
+
 def test_vite_build_outputs_plugin_page_dashboard():
     package_json = (ROOT / "webui" / "package.json").read_text(encoding="utf-8")
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import zhCN from 'antd/locale/zh_CN';
 import {
   BugOutlined,
   CheckCircleOutlined,
@@ -36,31 +37,31 @@ const { Title, Paragraph, Text } = Typography;
 const { TextArea } = Input;
 
 const menuItems = [
-  { key: 'dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
-  { key: 'accounts', icon: <UserOutlined />, label: 'Accounts' },
-  { key: 'characters', icon: <UserSwitchOutlined />, label: 'Characters' },
-  { key: 'lorebooks', icon: <ReadOutlined />, label: 'Lorebooks' },
-  { key: 'sessions', icon: <TeamOutlined />, label: 'Sessions' },
-  { key: 'memory', icon: <DatabaseOutlined />, label: 'Memory' },
-  { key: 'debug', icon: <BugOutlined />, label: 'Debug' },
+  { key: 'dashboard', icon: <DashboardOutlined />, label: '控制台' },
+  { key: 'accounts', icon: <UserOutlined />, label: '账号' },
+  { key: 'characters', icon: <UserSwitchOutlined />, label: '角色' },
+  { key: 'lorebooks', icon: <ReadOutlined />, label: '世界书' },
+  { key: 'sessions', icon: <TeamOutlined />, label: '会话' },
+  { key: 'memory', icon: <DatabaseOutlined />, label: '记忆' },
+  { key: 'debug', icon: <BugOutlined />, label: '调试' },
 ];
 
 const characterTextFields = [
-  ['name', 'Name'],
-  ['system_prompt', 'System prompt'],
-  ['description', 'Description'],
-  ['personality', 'Personality'],
-  ['scenario', 'Scenario'],
-  ['first_message', 'First message'],
-  ['speaking_style', 'Speaking style'],
-  ['post_history_prompt', 'Post-history prompt'],
-  ['author_note', 'Author note'],
+  ['name', '名称'],
+  ['system_prompt', '系统提示词'],
+  ['description', '描述'],
+  ['personality', '人格'],
+  ['scenario', '场景'],
+  ['first_message', '开场白'],
+  ['speaking_style', '说话风格'],
+  ['post_history_prompt', '历史后提示词'],
+  ['author_note', '作者注记'],
 ];
 
 const characterListFields = [
-  ['aliases', 'Aliases'],
-  ['alternate_greetings', 'Alternate greetings'],
-  ['linked_lorebook_ids', 'Linked lorebook IDs'],
+  ['aliases', '别名'],
+  ['alternate_greetings', '备用开场白'],
+  ['linked_lorebook_ids', '关联世界书 ID'],
 ];
 
 const emptyCharacterForm = Object.fromEntries(
@@ -69,35 +70,35 @@ const emptyCharacterForm = Object.fromEntries(
 
 
 const entryTextFields = [
-  ['title', 'Title'],
-  ['content', 'Content'],
-  ['position', 'Position'],
-  ['group', 'Group'],
+  ['title', '标题'],
+  ['content', '内容'],
+  ['position', '插入位置'],
+  ['group', '分组'],
 ];
 
 const entryListFields = [
-  ['keys', 'Keys'],
-  ['secondary_keys', 'Secondary keys'],
-  ['character_filter', 'Character filter'],
+  ['keys', '关键词'],
+  ['secondary_keys', '二级关键词'],
+  ['character_filter', '角色过滤'],
 ];
 
 const entryBoolFields = [
-  ['enabled', 'Enabled'],
-  ['constant', 'Constant'],
-  ['selective', 'Selective'],
-  ['regex', 'Regex'],
-  ['case_sensitive', 'Case sensitive'],
-  ['recursive', 'Recursive'],
+  ['enabled', '已启用'],
+  ['constant', '常驻'],
+  ['selective', '选择性触发'],
+  ['regex', '正则'],
+  ['case_sensitive', '区分大小写'],
+  ['recursive', '递归'],
 ];
 
 const entryNumberFields = [
-  ['depth', 'Depth'],
-  ['priority', 'Priority'],
-  ['order', 'Order'],
-  ['probability', 'Probability'],
-  ['cooldown_turns', 'Cooldown turns'],
-  ['sticky_turns', 'Sticky turns'],
-  ['max_injections_per_chat', 'Max injections per chat'],
+  ['depth', '深度'],
+  ['priority', '优先级'],
+  ['order', '排序'],
+  ['probability', '触发概率'],
+  ['cooldown_turns', '冷却轮数'],
+  ['sticky_turns', '粘滞轮数'],
+  ['max_injections_per_chat', '单聊最大注入次数'],
 ];
 
 const entryIntegerFields = new Set([
@@ -211,25 +212,25 @@ async function apiFetch(path, options = {}) {
 function DashboardPage() {
   const cards = [
     {
-      title: 'Default-on',
-      value: 'Enabled',
+      title: '默认启用',
+      value: '已启用',
       tone: 'green',
       icon: <CheckCircleOutlined />,
-      description: 'Smarter RP is designed to start active by default for configured conversations.',
+      description: 'Smarter RP 会在已配置的会话中默认保持启用。',
     },
     {
-      title: 'Characters',
-      value: 'API-backed',
+      title: '角色',
+      value: 'API 驱动',
       tone: 'blue',
       icon: <UserSwitchOutlined />,
-      description: 'Character profiles, persona prompts, and linked lorebooks are managed from the WebUI.',
+      description: '角色档案、人设提示词和关联世界书都可以在 WebUI 中管理。',
     },
     {
-      title: 'Memory',
-      value: 'Automatic',
+      title: '记忆',
+      value: '自动管理',
       tone: 'gold',
       icon: <DatabaseOutlined />,
-      description: 'Session summaries, structured state, retrieved memories, and debug traces are available behind token auth.',
+      description: '会话摘要、结构化状态、检索到的记忆和调试轨迹都通过令牌鉴权访问。',
     },
   ];
 
@@ -237,9 +238,9 @@ function DashboardPage() {
     <section className="page-panel dashboard-panel">
       <div className="hero-copy">
         <Tag className="phase-tag">WebUI</Tag>
-        <Title level={1}>Smarter RP control room</Title>
+        <Title level={1}>Smarter RP 控制台</Title>
         <Paragraph>
-          Manage characters, lorebooks, sessions, memory, and debug traces through token-protected API-backed panels.
+          通过受令牌保护的 API 面板管理角色、世界书、会话、记忆和调试轨迹。
         </Paragraph>
       </div>
       <Row gutter={[18, 18]} className="status-grid">
@@ -264,18 +265,18 @@ function AccountsPage() {
   return (
     <section className="page-panel split-panel">
       <div>
-        <Tag className="phase-tag">Accounts</Tag>
-        <Title level={1}>Account defaults without surprises</Title>
+        <Tag className="phase-tag">账号</Tag>
+        <Title level={1}>账号默认设置</Title>
         <Paragraph>
-          Account APIs are active for per-account defaults while preserving default-on behavior for normal use.
+          账号 API 可管理每个账号的默认设置，同时保留日常使用时默认启用的行为。
         </Paragraph>
       </div>
       <Card className="feature-card" bordered={false}>
-        <Title level={3}>Account controls</Title>
+        <Title level={3}>账号控制</Title>
         <ul className="feature-list">
-          <li>Toggle Smarter RP for an account without affecting other accounts.</li>
-          <li>Choose the account default character for new roleplay sessions.</li>
-          <li>Attach default lorebooks that should be available when sessions start.</li>
+          <li>为单个账号开启或关闭 Smarter RP，不影响其他账号。</li>
+          <li>为新角色扮演会话选择账号默认角色。</li>
+          <li>绑定会话开始时默认可用的世界书。</li>
         </ul>
       </Card>
     </section>
@@ -358,34 +359,34 @@ function CharactersPage() {
     <section className="page-panel management-panel">
       <div className="management-heading">
         <div>
-          <Tag className="phase-tag">Characters API</Tag>
-          <Title level={1}>Characters</Title>
-          <Paragraph>Manage rich roleplay character profiles. Multi-value fields use one item per line.</Paragraph>
+          <Tag className="phase-tag">角色 API</Tag>
+          <Title level={1}>角色</Title>
+          <Paragraph>管理完整的角色扮演角色档案。多值字段每行填写一项。</Paragraph>
         </div>
-        <Button onClick={loadCharacters} loading={loading}>Refresh</Button>
+        <Button onClick={loadCharacters} loading={loading}>刷新</Button>
       </div>
       {error && <div className="error-banner">{error}</div>}
       <Row gutter={[18, 18]}>
         <Col xs={24} lg={10}>
           <Card className="feature-card list-card" bordered={false}>
-            <Title level={3}>Saved characters</Title>
+            <Title level={3}>已保存角色</Title>
             {loading ? (
               <Spin />
             ) : characters.length === 0 ? (
-              <Text type="secondary">No characters yet.</Text>
+              <Text type="secondary">还没有角色。</Text>
             ) : (
               <div className="record-list">
                 {characters.map((character) => (
                   <div className="record-item" key={character.id}>
                     <div>
-                      <Text strong>{character.name || 'Unnamed character'}</Text>
+                      <Text strong>{character.name || '未命名角色'}</Text>
                       <Text className="record-meta">{character.id}</Text>
-                      {character.aliases?.length > 0 && <Text className="record-meta">Aliases: {character.aliases.join(', ')}</Text>}
+                      {character.aliases?.length > 0 && <Text className="record-meta">别名：{character.aliases.join(', ')}</Text>}
                     </div>
                     <Space wrap>
-                      <Button size="small" onClick={() => startEdit(character)}>Edit</Button>
-                      <Popconfirm title="Delete this character?" onConfirm={() => deleteCharacter(character.id)}>
-                        <Button size="small" danger>Delete</Button>
+                      <Button size="small" onClick={() => startEdit(character)}>编辑</Button>
+                      <Popconfirm title="确定删除这个角色吗？" onConfirm={() => deleteCharacter(character.id)}>
+                        <Button size="small" danger>删除</Button>
                       </Popconfirm>
                     </Space>
                   </div>
@@ -397,7 +398,7 @@ function CharactersPage() {
         <Col xs={24} lg={14}>
           <Card className="feature-card form-card" bordered={false}>
             <Space className="form-title-row" align="center">
-              <Title level={3}>{editingId ? 'Edit character' : 'Create character'}</Title>
+              <Title level={3}>{editingId ? '编辑角色' : '创建角色'}</Title>
               {editingId && <Tag>{editingId}</Tag>}
             </Space>
             <Form layout="vertical">
@@ -411,15 +412,15 @@ function CharactersPage() {
                 </Form.Item>
               ))}
               {characterListFields.map(([field, label]) => (
-                <Form.Item label={`${label} (one per line)`} key={field}>
+                <Form.Item label={`${label}（每行一项）`} key={field}>
                   <TextArea rows={3} value={formValues[field]} onChange={(event) => setFormValues({ ...formValues, [field]: event.target.value })} />
                 </Form.Item>
               ))}
               <Space wrap>
                 <Button type="primary" onClick={saveCharacter} loading={saving} disabled={!formValues.name.trim()}>
-                  {editingId ? 'Save changes' : 'Create character'}
+                  {editingId ? '保存修改' : '创建角色'}
                 </Button>
-                <Button onClick={resetForm}>Clear form</Button>
+                <Button onClick={resetForm}>清空表单</Button>
               </Space>
             </Form>
           </Card>
@@ -717,21 +718,21 @@ function LorebooksPage() {
     <section className="page-panel management-panel lorebooks-panel">
       <div className="management-heading">
         <div>
-          <Tag className="phase-tag">Lorebooks API</Tag>
-          <Title level={1}>Lorebooks</Title>
-          <Paragraph>Manage world facts, trigger rules, import/export, and quick matching tests.</Paragraph>
+          <Tag className="phase-tag">世界书 API</Tag>
+          <Title level={1}>世界书</Title>
+          <Paragraph>管理世界设定、触发规则、导入导出和快速命中测试。</Paragraph>
         </div>
-        <Button onClick={loadLorebooks} loading={loading}>Refresh</Button>
+        <Button onClick={loadLorebooks} loading={loading}>刷新</Button>
       </div>
       {error && <div className="error-banner">{error}</div>}
       <Row gutter={[18, 18]}>
         <Col xs={24} lg={9}>
           <Card className="feature-card list-card" bordered={false}>
-            <Title level={3}>Saved lorebooks</Title>
+            <Title level={3}>已保存世界书</Title>
             {loading ? (
               <Spin />
             ) : lorebooks.length === 0 ? (
-              <Text type="secondary">No lorebooks yet.</Text>
+              <Text type="secondary">还没有世界书。</Text>
             ) : (
               <div className="record-list">
                 {lorebooks.map((book) => (
@@ -751,14 +752,14 @@ function LorebooksPage() {
                         }
                       }}
                     >
-                      <Text strong>{book.name || 'Unnamed lorebook'}</Text>
+                      <Text strong>{book.name || '未命名世界书'}</Text>
                       <Text className="record-meta">{book.id}</Text>
                       <Text className="record-meta">{book.scope}{book.session_id ? ` · ${book.session_id}` : ''}</Text>
                     </div>
                     <Space wrap>
-                      <Button size="small" onClick={() => startBookEdit(book)}>Edit</Button>
-                      <Popconfirm title="Delete this lorebook?" onConfirm={() => deleteBook(book.id)}>
-                        <Button size="small" danger>Delete</Button>
+                      <Button size="small" onClick={() => startBookEdit(book)}>编辑</Button>
+                      <Popconfirm title="确定删除这个世界书吗？" onConfirm={() => deleteBook(book.id)}>
+                        <Button size="small" danger>删除</Button>
                       </Popconfirm>
                     </Space>
                   </div>
@@ -768,31 +769,31 @@ function LorebooksPage() {
           </Card>
           <Card className="feature-card form-card compact-card" bordered={false}>
             <Space className="form-title-row" align="center">
-              <Title level={3}>{editingBookId ? 'Edit lorebook' : 'Create lorebook'}</Title>
+              <Title level={3}>{editingBookId ? '编辑世界书' : '创建世界书'}</Title>
               {editingBookId && <Tag>{editingBookId}</Tag>}
             </Space>
             <Form layout="vertical">
-              <Form.Item label="Name" required>
+              <Form.Item label="名称" required>
                 <Input value={bookForm.name} onChange={(event) => setBookForm({ ...bookForm, name: event.target.value })} />
               </Form.Item>
-              <Form.Item label="Description">
+              <Form.Item label="描述">
                 <TextArea rows={2} value={bookForm.description} onChange={(event) => setBookForm({ ...bookForm, description: event.target.value })} />
               </Form.Item>
-              <Form.Item label="Scope">
+              <Form.Item label="作用域">
                 <Select
-                  options={[{ value: 'global', label: 'global' }, { value: 'session', label: 'session' }]}
+                  options={[{ value: 'global', label: '全局' }, { value: 'session', label: '会话' }]}
                   value={bookForm.scope}
                   onChange={(value) => setBookForm({ ...bookForm, scope: value })}
                 />
               </Form.Item>
-              <Form.Item label="Session ID">
+              <Form.Item label="会话 ID">
                 <Input value={bookForm.session_id} onChange={(event) => setBookForm({ ...bookForm, session_id: event.target.value })} disabled={bookForm.scope !== 'session'} />
               </Form.Item>
               <Space wrap>
                 <Button type="primary" onClick={saveBook} loading={saving} disabled={!bookForm.name.trim()}>
-                  {editingBookId ? 'Save changes' : 'Create lorebook'}
+                  {editingBookId ? '保存修改' : '创建世界书'}
                 </Button>
-                <Button onClick={resetBookForm}>Clear form</Button>
+                <Button onClick={resetBookForm}>清空表单</Button>
               </Space>
             </Form>
           </Card>
@@ -800,32 +801,32 @@ function LorebooksPage() {
         <Col xs={24} lg={15}>
           <Card className="feature-card list-card" bordered={false}>
             <div className="section-heading-row">
-              <Title level={3}>Entries</Title>
-              <Button onClick={() => loadEntries(selectedBookId)} loading={entriesLoading} disabled={!selectedBookId}>Refresh entries</Button>
+              <Title level={3}>条目</Title>
+              <Button onClick={() => loadEntries(selectedBookId)} loading={entriesLoading} disabled={!selectedBookId}>刷新条目</Button>
             </div>
             {!selectedBookId ? (
-              <Text type="secondary">Select a lorebook to manage entries.</Text>
+              <Text type="secondary">请选择一个世界书来管理条目。</Text>
             ) : entriesLoading ? (
               <Spin />
             ) : entries.length === 0 ? (
-              <Text type="secondary">No entries in this lorebook.</Text>
+              <Text type="secondary">这个世界书还没有条目。</Text>
             ) : (
               <div className="record-list entry-list">
                 {entries.map((entry) => (
                   <div className="record-item" key={entry.id}>
                     <div>
                       <Space wrap>
-                        <Text strong>{entry.title || 'Untitled entry'}</Text>
-                        <Tag color={entry.enabled ? 'green' : 'default'}>{entry.enabled ? 'Enabled' : 'Disabled'}</Tag>
-                        {entry.constant && <Tag color="blue">Constant</Tag>}
+                        <Text strong>{entry.title || '未命名条目'}</Text>
+                        <Tag color={entry.enabled ? 'green' : 'default'}>{entry.enabled ? '已启用' : '已禁用'}</Tag>
+                        {entry.constant && <Tag color="blue">常驻</Tag>}
                       </Space>
                       <Text className="record-meta">{entry.id}</Text>
-                      <Text className="record-meta">{entry.position} · priority {entry.priority || 0} · keys {(entry.keys || []).join(', ') || 'none'}</Text>
+                      <Text className="record-meta">{entry.position} · 优先级 {entry.priority || 0} · 关键词 {(entry.keys || []).join(', ') || '无'}</Text>
                     </div>
                     <Space wrap>
-                      <Button size="small" onClick={() => startEntryEdit(entry)}>Edit</Button>
-                      <Popconfirm title="Delete this entry?" onConfirm={() => deleteEntry(entry.id)}>
-                        <Button size="small" danger>Delete</Button>
+                      <Button size="small" onClick={() => startEntryEdit(entry)}>编辑</Button>
+                      <Popconfirm title="确定删除这个条目吗？" onConfirm={() => deleteEntry(entry.id)}>
+                        <Button size="small" danger>删除</Button>
                       </Popconfirm>
                     </Space>
                   </div>
@@ -835,25 +836,25 @@ function LorebooksPage() {
           </Card>
           <Card className="feature-card form-card compact-card" bordered={false}>
             <Space className="form-title-row" align="center">
-              <Title level={3}>{editingEntryId ? 'Edit entry' : 'Create entry'}</Title>
+              <Title level={3}>{editingEntryId ? '编辑条目' : '创建条目'}</Title>
               {editingEntryId && <Tag>{editingEntryId}</Tag>}
             </Space>
             <Form layout="vertical" className="entry-form-grid">
-              <Form.Item label="Title" required>
+              <Form.Item label="标题" required>
                 <Input value={entryForm.title} onChange={(event) => setEntryForm({ ...entryForm, title: event.target.value })} />
               </Form.Item>
-              <Form.Item label="Position">
+              <Form.Item label="插入位置">
                 <Select options={positionOptions} value={entryForm.position} onChange={(value) => setEntryForm({ ...entryForm, position: value })} />
               </Form.Item>
-              <Form.Item label="Content" className="wide-field" required>
+              <Form.Item label="内容" className="wide-field" required>
                 <TextArea rows={4} value={entryForm.content} onChange={(event) => setEntryForm({ ...entryForm, content: event.target.value })} />
               </Form.Item>
               {entryListFields.map(([field, label]) => (
-                <Form.Item label={`${label} (one per line)`} key={field}>
+                <Form.Item label={`${label}（每行一项）`} key={field}>
                   <TextArea rows={3} value={entryForm[field]} onChange={(event) => setEntryForm({ ...entryForm, [field]: event.target.value })} />
                 </Form.Item>
               ))}
-              <Form.Item label="Group">
+              <Form.Item label="分组">
                 <Input value={entryForm.group} onChange={(event) => setEntryForm({ ...entryForm, group: event.target.value })} />
               </Form.Item>
               {entryNumberFields.map(([field, label]) => (
@@ -869,7 +870,7 @@ function LorebooksPage() {
                   />
                 </Form.Item>
               ))}
-              <Form.Item label="Flags" className="wide-field">
+              <Form.Item label="标记" className="wide-field">
                 <Space wrap>
                   {entryBoolFields.map(([field, label]) => (
                     <Checkbox key={field} checked={entryForm[field]} onChange={(event) => setEntryForm({ ...entryForm, [field]: event.target.checked })}>
@@ -881,9 +882,9 @@ function LorebooksPage() {
               <Form.Item className="wide-field">
                 <Space wrap>
                   <Button type="primary" onClick={saveEntry} loading={entrySaving} disabled={!selectedBookId || !entryForm.title.trim() || !entryForm.content.trim()}>
-                    {editingEntryId ? 'Save entry' : 'Create entry'}
+                    {editingEntryId ? '保存条目' : '创建条目'}
                   </Button>
-                  <Button onClick={resetEntryForm}>Clear entry form</Button>
+                  <Button onClick={resetEntryForm}>清空条目表单</Button>
                 </Space>
               </Form.Item>
             </Form>
@@ -891,28 +892,28 @@ function LorebooksPage() {
           <Row gutter={[18, 18]}>
             <Col xs={24} xl={12}>
               <Card className="feature-card compact-card" bordered={false}>
-                <Title level={3}>Import / export JSON</Title>
-                <TextArea className="json-panel" rows={8} value={importJson} onChange={(event) => setImportJson(event.target.value)} placeholder="Paste lorebook JSON to import" />
+                <Title level={3}>导入 / 导出 JSON</Title>
+                <TextArea className="json-panel" rows={8} value={importJson} onChange={(event) => setImportJson(event.target.value)} placeholder="粘贴要导入的世界书 JSON" />
                 <Space wrap className="tool-row">
-                  <Button onClick={importLorebook} disabled={!importJson.trim()}>Import JSON</Button>
-                  <Button onClick={exportLorebook} disabled={!selectedBookId}>Export selected</Button>
+                  <Button onClick={importLorebook} disabled={!importJson.trim()}>导入 JSON</Button>
+                  <Button onClick={exportLorebook} disabled={!selectedBookId}>导出所选</Button>
                 </Space>
                 {exportJson && <TextArea className="json-panel" rows={10} value={exportJson} readOnly />}
               </Card>
             </Col>
             <Col xs={24} xl={12}>
               <Card className="feature-card compact-card" bordered={false}>
-                <Title level={3}>Hit test</Title>
-                <TextArea rows={5} value={hitInput} onChange={(event) => setHitInput(event.target.value)} placeholder="Type current user input to test against the selected lorebook" />
+                <Title level={3}>命中测试</Title>
+                <TextArea rows={5} value={hitInput} onChange={(event) => setHitInput(event.target.value)} placeholder="输入当前用户发言，用所选世界书测试命中" />
                 <Select
                   allowClear
                   className="full-width-input tool-row"
-                  placeholder="Optional session context"
+                  placeholder="可选会话上下文"
                   options={sessionOptions}
                   value={hitSessionId || undefined}
                   onChange={(value) => setHitSessionId(value || '')}
                 />
-                <Button onClick={runHitTest} disabled={!selectedBookId || !hitInput.trim()}>Run hit test</Button>
+                <Button onClick={runHitTest} disabled={!selectedBookId || !hitInput.trim()}>运行命中测试</Button>
                 {hitResult && (
                   <pre className="hit-test-output">{JSON.stringify({ hits: hitResult.hits, filtered: hitResult.filtered, buckets: hitResult.buckets }, null, 2)}</pre>
                 )}
@@ -921,23 +922,23 @@ function LorebooksPage() {
           </Row>
           {(accountOptions.length > 0 || sessionOptions.length > 0) && (
             <Card className="feature-card compact-card" bordered={false}>
-              <Title level={3}>Assign selected lorebook</Title>
+              <Title level={3}>分配所选世界书</Title>
               <Row gutter={[12, 12]}>
                 {accountOptions.length > 0 && (
                   <Col xs={24} md={12}>
                     <Space direction="vertical" className="assignment-control">
-                      <Text className="control-label">Account default lorebook</Text>
-                      <Select allowClear options={accountOptions} value={assignAccountId} onChange={setAssignAccountId} placeholder="Choose account" />
-                      <Button onClick={() => assignLorebook('account')} disabled={!selectedBookId || !assignAccountId}>Set account lorebook_ids</Button>
+                      <Text className="control-label">账号默认世界书</Text>
+                      <Select allowClear options={accountOptions} value={assignAccountId} onChange={setAssignAccountId} placeholder="选择账号" />
+                      <Button onClick={() => assignLorebook('account')} disabled={!selectedBookId || !assignAccountId}>设置账号 lorebook_ids</Button>
                     </Space>
                   </Col>
                 )}
                 {sessionOptions.length > 0 && (
                   <Col xs={24} md={12}>
                     <Space direction="vertical" className="assignment-control">
-                      <Text className="control-label">Session active lorebook</Text>
-                      <Select allowClear options={sessionOptions} value={assignSessionId} onChange={setAssignSessionId} placeholder="Choose session" />
-                      <Button onClick={() => assignLorebook('session')} disabled={!selectedBookId || !assignSessionId}>Set session lorebook_ids</Button>
+                      <Text className="control-label">会话启用世界书</Text>
+                      <Select allowClear options={sessionOptions} value={assignSessionId} onChange={setAssignSessionId} placeholder="选择会话" />
+                      <Button onClick={() => assignLorebook('session')} disabled={!selectedBookId || !assignSessionId}>设置会话 lorebook_ids</Button>
                     </Space>
                   </Col>
                 )}
@@ -1050,21 +1051,21 @@ function SessionsPage() {
     <section className="page-panel management-panel">
       <div className="management-heading">
         <div>
-          <Tag className="phase-tag">Sessions API</Tag>
-          <Title level={1}>Sessions</Title>
-          <Paragraph>Assign active characters, pause or resume RP, and manage recent session history.</Paragraph>
+          <Tag className="phase-tag">会话 API</Tag>
+          <Title level={1}>会话</Title>
+          <Paragraph>分配当前角色、暂停或恢复 RP，并管理最近的会话历史。</Paragraph>
         </div>
-        <Button onClick={loadSessions} loading={loading}>Refresh</Button>
+        <Button onClick={loadSessions} loading={loading}>刷新</Button>
       </div>
       {error && <div className="error-banner">{error}</div>}
       <Row gutter={[18, 18]}>
         <Col xs={24} lg={11}>
           <Card className="feature-card list-card" bordered={false}>
-            <Title level={3}>Live sessions</Title>
+            <Title level={3}>当前会话</Title>
             {loading ? (
               <Spin />
             ) : sessions.length === 0 ? (
-              <Text type="secondary">No sessions yet.</Text>
+              <Text type="secondary">还没有会话。</Text>
             ) : (
               <div className="record-list">
                 {sessions.map((session) => (
@@ -1077,9 +1078,9 @@ function SessionsPage() {
                     <div>
                       <Text strong>{session.unified_msg_origin || session.id}</Text>
                       <Text className="record-meta">{session.id}</Text>
-                      <Text className="record-meta">Turns: {session.turn_count || 0}</Text>
+                      <Text className="record-meta">轮次：{session.turn_count || 0}</Text>
                     </div>
-                    <Tag color={session.paused ? 'gold' : 'green'}>{session.paused ? 'Paused' : 'Active'}</Tag>
+                    <Tag color={session.paused ? 'gold' : 'green'}>{session.paused ? '已暂停' : '运行中'}</Tag>
                   </button>
                 ))}
               </div>
@@ -1088,14 +1089,14 @@ function SessionsPage() {
         </Col>
         <Col xs={24} lg={13}>
           <Card className="feature-card form-card" bordered={false}>
-            <Title level={3}>Session controls</Title>
+            <Title level={3}>会话控制</Title>
             {selectedSession ? (
               <Space direction="vertical" size="middle" className="session-controls">
                 <div>
-                  <Text className="control-label">Active character</Text>
+                  <Text className="control-label">当前角色</Text>
                   <Select
                     allowClear
-                    placeholder="No active character"
+                    placeholder="未设置当前角色"
                     options={characterOptions}
                     value={selectedSession.active_character_id || undefined}
                     onChange={(value) => patchSession(selectedSession.id, { active_character_id: value || null })}
@@ -1103,33 +1104,33 @@ function SessionsPage() {
                 </div>
                 <Space wrap>
                   <Button icon={<PauseCircleOutlined />} onClick={() => patchSession(selectedSession.id, { paused: !selectedSession.paused })}>
-                    {selectedSession.paused ? 'Resume RP' : 'Pause RP'}
+                    {selectedSession.paused ? '恢复 RP' : '暂停 RP'}
                   </Button>
-                  <Button onClick={() => loadHistory(selectedSession.id)} loading={historyLoading}>Refresh history</Button>
-                  <Popconfirm title="Clear all visible history?" onConfirm={clearHistory}>
-                    <Button danger>Clear history</Button>
+                  <Button onClick={() => loadHistory(selectedSession.id)} loading={historyLoading}>刷新历史</Button>
+                  <Popconfirm title="确定清空当前可见历史吗？" onConfirm={clearHistory}>
+                    <Button danger>清空历史</Button>
                   </Popconfirm>
-                  <Button onClick={undoLatestTurn}>Undo latest turn</Button>
+                  <Button onClick={undoLatestTurn}>撤销最新轮次</Button>
                 </Space>
               </Space>
             ) : (
-              <Text type="secondary">Select a session to manage controls and history.</Text>
+              <Text type="secondary">请选择一个会话来管理控制项和历史。</Text>
             )}
           </Card>
           <Card className="feature-card history-card" bordered={false}>
-            <Title level={3}>Recent history</Title>
+            <Title level={3}>最近历史</Title>
             {historyLoading ? (
               <Spin />
             ) : history.length === 0 ? (
-              <Text type="secondary">No history messages for this session.</Text>
+              <Text type="secondary">这个会话还没有历史消息。</Text>
             ) : (
               <div className="history-list">
                 {history.map((message) => (
                   <div className="history-message" key={message.id}>
                     <Space className="history-message-head" wrap>
                       <Tag color={message.role === 'assistant' ? 'green' : message.role === 'system' ? 'blue' : 'gold'}>{message.role}</Tag>
-                      <Text strong>{message.speaker || 'Unknown'}</Text>
-                      <Text className="record-meta">Turn {message.turn_number}</Text>
+                      <Text strong>{message.speaker || '未知'}</Text>
+                      <Text className="record-meta">轮次 {message.turn_number}</Text>
                     </Space>
                     <Paragraph>{message.content}</Paragraph>
                   </div>
@@ -1220,21 +1221,21 @@ function MemoryPage() {
     <section className="page-panel management-panel">
       <div className="management-heading">
         <div>
-          <Tag className="phase-tag">Memory API</Tag>
-          <Title level={1}>Memory</Title>
-          <Paragraph>Inspect session summaries, structured state, retrieval hits, and event memories.</Paragraph>
+          <Tag className="phase-tag">记忆 API</Tag>
+          <Title level={1}>记忆</Title>
+          <Paragraph>查看会话摘要、结构化状态、检索命中和事件记忆。</Paragraph>
         </div>
-        <Button onClick={loadSessions} loading={loading}>Refresh</Button>
+        <Button onClick={loadSessions} loading={loading}>刷新</Button>
       </div>
       {error && <div className="error-banner">{error}</div>}
       <Row gutter={[18, 18]}>
         <Col xs={24} lg={9}>
           <Card className="feature-card list-card" bordered={false}>
-            <Title level={3}>Memory sessions</Title>
+            <Title level={3}>记忆会话</Title>
             {loading ? (
               <Spin />
             ) : sessions.length === 0 ? (
-              <Text type="secondary">No memory sessions yet.</Text>
+              <Text type="secondary">还没有记忆会话。</Text>
             ) : (
               <div className="record-list">
                 {sessions.map((session) => (
@@ -1247,7 +1248,7 @@ function MemoryPage() {
                     <div>
                       <Text strong>{session.unified_msg_origin || session.id}</Text>
                       <Text className="record-meta">{session.id}</Text>
-                      <Text className="record-meta">Memories: {session.memory_count || 0} · Turns: {session.turn_count || 0}</Text>
+                      <Text className="record-meta">记忆：{session.memory_count || 0} · 轮次：{session.turn_count || 0}</Text>
                     </div>
                   </button>
                 ))}
@@ -1258,16 +1259,16 @@ function MemoryPage() {
         <Col xs={24} lg={15}>
           <Card className="feature-card form-card" bordered={false}>
             <div className="section-heading-row">
-              <Title level={3}>Session memory state</Title>
+              <Title level={3}>会话记忆状态</Title>
               <Space wrap>
-                <Button onClick={() => loadDetail(selectedSessionId)} loading={detailLoading} disabled={!selectedSessionId}>Refresh detail</Button>
-                <Popconfirm title="Clear all memory for this session?" onConfirm={clearSessionMemory}>
-                  <Button danger disabled={!selectedSessionId}>Clear session memory</Button>
+                <Button onClick={() => loadDetail(selectedSessionId)} loading={detailLoading} disabled={!selectedSessionId}>刷新详情</Button>
+                <Popconfirm title="确定清空这个会话的全部记忆吗？" onConfirm={clearSessionMemory}>
+                  <Button danger disabled={!selectedSessionId}>清空会话记忆</Button>
                 </Popconfirm>
               </Space>
             </div>
             {!status ? (
-              <Text type="secondary">Select a session to inspect memory.</Text>
+              <Text type="secondary">请选择一个会话来查看记忆。</Text>
             ) : detailLoading ? (
               <Spin />
             ) : (
@@ -1277,26 +1278,26 @@ function MemoryPage() {
                   <Text className="record-meta">{status.id}</Text>
                 </div>
                 <div>
-                  <Text className="control-label">Summary</Text>
-                  <Paragraph>{status.summary || 'No summary stored.'}</Paragraph>
+                  <Text className="control-label">摘要</Text>
+                  <Paragraph>{status.summary || '尚未保存摘要。'}</Paragraph>
                 </div>
                 <div>
-                  <Text className="control-label">State JSON</Text>
+                  <Text className="control-label">状态 JSON</Text>
                   <pre className="hit-test-output">{JSON.stringify(status.state || {}, null, 2)}</pre>
                 </div>
                 <div>
-                  <Text className="control-label">Last memory hits JSON</Text>
+                  <Text className="control-label">最近记忆命中 JSON</Text>
                   <pre className="hit-test-output">{JSON.stringify(status.last_memory_hits || [], null, 2)}</pre>
                 </div>
               </Space>
             )}
           </Card>
           <Card className="feature-card history-card" bordered={false}>
-            <Title level={3}>Event memories</Title>
+            <Title level={3}>事件记忆</Title>
             {detailLoading ? (
               <Spin />
             ) : memories.length === 0 ? (
-              <Text type="secondary">No event memories for this session.</Text>
+              <Text type="secondary">这个会话还没有事件记忆。</Text>
             ) : (
               <div className="record-list">
                 {memories.map((memory) => (
@@ -1305,14 +1306,14 @@ function MemoryPage() {
                       <Space wrap>
                         <Text strong>{memory.content}</Text>
                         <Tag color="green">{memory.type}</Tag>
-                        <Tag>importance {memory.importance}</Tag>
-                        <Tag>confidence {memory.confidence}</Tag>
+                        <Tag>重要性 {memory.importance}</Tag>
+                        <Tag>置信度 {memory.confidence}</Tag>
                       </Space>
                       <Text className="record-meta">{memory.id}</Text>
-                      <Text className="record-meta">turns {memory.turn_range?.join('-') || 'n/a'} · sources {(memory.source_message_ids || []).join(', ') || 'none'}</Text>
+                      <Text className="record-meta">轮次 {memory.turn_range?.join('-') || '无'} · 来源 {(memory.source_message_ids || []).join(', ') || '无'}</Text>
                     </div>
-                    <Popconfirm title="Delete this memory?" onConfirm={() => deleteMemory(memory.id)}>
-                      <Button size="small" danger>Delete</Button>
+                    <Popconfirm title="确定删除这条记忆吗？" onConfirm={() => deleteMemory(memory.id)}>
+                      <Button size="small" danger>删除</Button>
                     </Popconfirm>
                   </div>
                 ))}
@@ -1399,28 +1400,28 @@ function DebugPage() {
     <section className="page-panel management-panel">
       <div className="management-heading">
         <div>
-          <Tag className="phase-tag">Debug API</Tag>
-          <Title level={1}>Debug</Title>
-          <Paragraph>Review prompt snapshots, raw request snapshots, memory traces, tool traces, and lore hits.</Paragraph>
+          <Tag className="phase-tag">调试 API</Tag>
+          <Title level={1}>调试</Title>
+          <Paragraph>查看提示词快照、原始请求快照、记忆轨迹、工具轨迹和世界书命中。</Paragraph>
         </div>
-        <Button onClick={loadDebug} loading={loading}>Refresh</Button>
+        <Button onClick={loadDebug} loading={loading}>刷新</Button>
       </div>
       {error && <div className="error-banner">{error}</div>}
       <Row gutter={[18, 18]}>
         <Col xs={24} lg={12}>
           <Card className="feature-card list-card" bordered={false}>
-            <Title level={3}>Prompt / raw snapshots</Title>
+            <Title level={3}>提示词 / 原始请求快照</Title>
             {loading ? (
               <Spin />
             ) : snapshots.length === 0 ? (
-              <Text type="secondary">No prompt or raw request snapshots.</Text>
+              <Text type="secondary">还没有提示词或原始请求快照。</Text>
             ) : (
               <div className="record-list">
                 {snapshots.map((snapshot) => (
                   <div className="history-message" key={snapshot.id}>
                     <Space className="history-message-head" wrap>
                       <Tag color={snapshot.type === 'prompt' ? 'green' : 'blue'}>{snapshot.type}</Tag>
-                      <Text className="record-meta">{snapshot.session_id || 'global'} · {snapshot.id}</Text>
+                      <Text className="record-meta">{snapshot.session_id || '全局'} · {snapshot.id}</Text>
                     </Space>
                     <pre className="hit-test-output">{snapshot.content}</pre>
                   </div>
@@ -1431,18 +1432,18 @@ function DebugPage() {
         </Col>
         <Col xs={24} lg={12}>
           <Card className="feature-card list-card" bordered={false}>
-            <Title level={3}>Memory traces</Title>
+            <Title level={3}>记忆轨迹</Title>
             {loading ? (
               <Spin />
             ) : memoryTraces.length === 0 ? (
-              <Text type="secondary">No memory debug traces.</Text>
+              <Text type="secondary">还没有记忆调试轨迹。</Text>
             ) : (
               <div className="record-list">
                 {memoryTraces.map((snapshot) => (
                   <div className="history-message" key={snapshot.id}>
                     <Space className="history-message-head" wrap>
                       <Tag color="purple">memory</Tag>
-                      <Text className="record-meta">{snapshot.session_id || 'global'} · {snapshot.id}</Text>
+                      <Text className="record-meta">{snapshot.session_id || '全局'} · {snapshot.id}</Text>
                     </Space>
                     <pre className="hit-test-output">{snapshot.content}</pre>
                   </div>
@@ -1451,18 +1452,18 @@ function DebugPage() {
             )}
           </Card>
           <Card className="feature-card compact-card" bordered={false}>
-            <Title level={3}>Tool traces</Title>
+            <Title level={3}>工具轨迹</Title>
             {loading ? (
               <Spin />
             ) : toolTraces.length === 0 ? (
-              <Text type="secondary">No tool debug traces.</Text>
+              <Text type="secondary">还没有工具调试轨迹。</Text>
             ) : (
               <div className="record-list">
                 {toolTraces.map((snapshot) => (
                   <div className="history-message" key={snapshot.id}>
                     <Space className="history-message-head" wrap>
                       <Tag color="cyan">tools</Tag>
-                      <Text className="record-meta">{snapshot.session_id || 'global'} · {snapshot.id}</Text>
+                      <Text className="record-meta">{snapshot.session_id || '全局'} · {snapshot.id}</Text>
                     </Space>
                     <pre className="hit-test-output">{snapshot.content}</pre>
                   </div>
@@ -1471,11 +1472,11 @@ function DebugPage() {
             )}
           </Card>
           <Card className="feature-card compact-card" bordered={false}>
-            <Title level={3}>Lore hits</Title>
+            <Title level={3}>世界书命中</Title>
             <Select
               allowClear
               className="full-width-input"
-              placeholder="Select session"
+              placeholder="选择会话"
               options={sessionOptions}
               value={selectedSessionId || undefined}
               onChange={(value) => setSelectedSessionId(value || '')}
@@ -1492,8 +1493,8 @@ function PlaceholderPage() {
   return (
     <section className="page-panel placeholder-panel">
       <Tag className="phase-tag">WebUI</Tag>
-      <Title level={1}>Page unavailable</Title>
-      <Paragraph>Select a management area from the sidebar.</Paragraph>
+      <Title level={1}>页面不可用</Title>
+      <Paragraph>请从侧边栏选择一个管理区域。</Paragraph>
     </section>
   );
 }
@@ -1528,6 +1529,7 @@ function App() {
 
   return (
     <ConfigProvider
+      locale={zhCN}
       theme={{
         algorithm: theme.darkAlgorithm,
         token: {
@@ -1543,7 +1545,7 @@ function App() {
             <div className="brand-mark">SR</div>
             <div>
               <Text className="brand-title">Smarter RP</Text>
-              <Text className="brand-subtitle">AstrBot Plugin</Text>
+              <Text className="brand-subtitle">AstrBot 插件</Text>
             </div>
           </div>
           <Menu
@@ -1564,9 +1566,9 @@ function App() {
               items={menuItems}
             />
             <Space className="header-tags" size="small">
-              <Tag color="green">Default-on</Tag>
+              <Tag color="green">默认启用</Tag>
               <Tag color="blue">Phase 2 API</Tag>
-              <Tag color="purple">Bearer token</Tag>
+              <Tag color="purple">Bearer 令牌</Tag>
             </Space>
           </Header>
           <Content className="app-content">{content}</Content>

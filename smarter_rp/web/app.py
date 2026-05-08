@@ -44,7 +44,7 @@ def create_app(token: str, storage: Storage | None = None) -> FastAPI:
     )
     character_service = CharacterService(storage) if storage is not None else None
     lorebook_service = LorebookService(storage) if storage is not None else None
-    app = FastAPI(title="Smarter RP WebUI")
+    app = FastAPI(title="Smarter RP 控制台")
 
     @app.get("/api/health")
     async def health():
@@ -56,7 +56,7 @@ def create_app(token: str, storage: Storage | None = None) -> FastAPI:
             return FileResponse(INDEX_FILE)
         return HTMLResponse(
             "<html><body><h1>Smarter RP</h1>"
-            "<p>WebUI assets have not been built yet.</p>"
+            "<p>WebUI 静态资源尚未构建。</p>"
             "</body></html>"
         )
 
