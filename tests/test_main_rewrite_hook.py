@@ -77,6 +77,15 @@ def run_llm_request(plugin, event, req):
     return asyncio.run(plugin.on_llm_request(event, req))
 
 
+async def wait_until(predicate, timeout: float = 1.0):
+    deadline = asyncio.get_running_loop().time() + timeout
+    while asyncio.get_running_loop().time() < deadline:
+        if predicate():
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError("condition was not met before timeout")
+
+
 def collect_async_generator(async_generator):
     async def collect():
         return [item async for item in async_generator]
@@ -308,6 +317,35 @@ def test_schedule_memory_job_ignores_stopping_plugin(main_module, monkeypatch, t
     plugin._schedule_memory_job("session_1")
 
     assert plugin._memory_tasks == {}
+
+
+def test_terminate_waits_for_webui_task_to_exit(main_module, monkeypatch, tmp_path):
+    async def run_test():
+        monkeypatch.setattr(main_module.SmarterRpPlugin, "_resolve_data_dir", lambda self: tmp_path)
+        plugin = main_module.SmarterRpPlugin(object(), {"webui": {"enabled": False}})
+        stop_requested = False
+        exited = False
+
+        async def fake_start():
+            nonlocal exited
+            await wait_until(lambda: stop_requested)
+            exited = True
+
+        def fake_request_stop():
+            nonlocal stop_requested
+            stop_requested = True
+
+        plugin.webui.start = fake_start
+        plugin.webui.request_stop = fake_request_stop
+        plugin._webui_task = asyncio.create_task(plugin.webui.start())
+
+        await plugin.terminate()
+
+        assert stop_requested is True
+        assert exited is True
+        assert plugin._webui_task is None
+
+    asyncio.run(run_test())
 
 
 def test_memory_background_error_snapshot_uses_json_envelope(main_module, monkeypatch, tmp_path):

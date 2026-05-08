@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -161,11 +162,13 @@ class SmarterRpPlugin(Star):
             await asyncio.gather(*memory_tasks, return_exceptions=True)
         self._memory_tasks.clear()
         if self._webui_task is not None:
-            self._webui_task.cancel()
             try:
-                await self._webui_task
-            except asyncio.CancelledError:
-                pass
+                await asyncio.wait_for(asyncio.shield(self._webui_task), timeout=5)
+            except TimeoutError:
+                self._webui_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await self._webui_task
+            self._webui_task = None
 
     async def on_llm_request(self, event, req):
         self.rewriter.rewrite(event, req)
