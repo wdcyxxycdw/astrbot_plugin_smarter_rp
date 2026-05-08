@@ -48,25 +48,10 @@ const menuItems = [
 
 const characterTextFields = [
   ['name', '名称'],
-  ['system_prompt', '系统提示词'],
-  ['description', '描述'],
-  ['personality', '人格'],
-  ['scenario', '场景'],
-  ['first_message', '开场白'],
-  ['speaking_style', '说话风格'],
-  ['post_history_prompt', '历史后提示词'],
-  ['author_note', '作者注记'],
+  ['system_prompt', '完整角色提示词'],
 ];
 
-const characterListFields = [
-  ['aliases', '别名'],
-  ['alternate_greetings', '备用开场白'],
-  ['linked_lorebook_ids', '关联世界书 ID'],
-];
-
-const emptyCharacterForm = Object.fromEntries(
-  [...characterTextFields, ...characterListFields].map(([field]) => [field, ''])
-);
+const emptyCharacterForm = Object.fromEntries(characterTextFields.map(([field]) => [field, '']));
 
 
 const entryTextFields = [
@@ -311,8 +296,8 @@ function CharactersPage() {
   function startEdit(character) {
     setEditingId(character.id);
     setFormValues({
-      ...Object.fromEntries(characterTextFields.map(([field]) => [field, character[field] || ''])),
-      ...Object.fromEntries(characterListFields.map(([field]) => [field, listToLines(character[field])])),
+      name: character.name || '',
+      system_prompt: character.system_prompt || '',
     });
   }
 
@@ -325,8 +310,8 @@ function CharactersPage() {
     setSaving(true);
     setError('');
     const body = {
-      ...Object.fromEntries(characterTextFields.map(([field]) => [field, formValues[field] || ''])),
-      ...Object.fromEntries(characterListFields.map(([field]) => [field, linesToList(formValues[field] || '')])),
+      name: formValues.name || '',
+      system_prompt: formValues.system_prompt || '',
     };
     try {
       await apiFetch(editingId ? `/api/characters/${editingId}` : '/api/characters', {
@@ -361,7 +346,7 @@ function CharactersPage() {
         <div>
           <Tag className="phase-tag">角色 API</Tag>
           <Title level={1}>角色</Title>
-          <Paragraph>管理完整的角色扮演角色档案。多值字段每行填写一项。</Paragraph>
+          <Paragraph>直接粘贴完整角色卡或角色 prompt，不需要拆分字段。</Paragraph>
         </div>
         <Button onClick={loadCharacters} loading={loading}>刷新</Button>
       </div>
@@ -407,13 +392,8 @@ function CharactersPage() {
                   {field === 'name' ? (
                     <Input value={formValues[field]} onChange={(event) => setFormValues({ ...formValues, [field]: event.target.value })} />
                   ) : (
-                    <TextArea rows={field === 'first_message' ? 3 : 2} value={formValues[field]} onChange={(event) => setFormValues({ ...formValues, [field]: event.target.value })} />
+                    <TextArea rows={16} placeholder="粘贴完整角色卡或角色 prompt" value={formValues[field]} onChange={(event) => setFormValues({ ...formValues, [field]: event.target.value })} />
                   )}
-                </Form.Item>
-              ))}
-              {characterListFields.map(([field, label]) => (
-                <Form.Item label={`${label}（每行一项）`} key={field}>
-                  <TextArea rows={3} value={formValues[field]} onChange={(event) => setFormValues({ ...formValues, [field]: event.target.value })} />
                 </Form.Item>
               ))}
               <Space wrap>

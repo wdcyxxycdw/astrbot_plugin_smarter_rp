@@ -61,6 +61,21 @@ def test_webui_configures_antd_chinese_locale():
     assert "locale={zhCN}" in source
 
 
+def test_character_editor_uses_single_prompt_field():
+    source = (ROOT / "webui" / "src" / "App.jsx").read_text(encoding="utf-8")
+
+    assert "完整角色提示词" in source
+    assert "粘贴完整角色卡或角色 prompt" in source
+    assert "['system_prompt', '完整角色提示词']" in source
+    assert "['personality'" not in source
+    assert "['scenario'" not in source
+    assert "['first_message'" not in source
+    assert "['speaking_style'" not in source
+    assert "['post_history_prompt'" not in source
+    assert "['author_note'" not in source
+    assert "characterListFields.map" not in source
+
+
 def test_vite_build_outputs_plugin_page_dashboard():
     package_json = (ROOT / "webui" / "package.json").read_text(encoding="utf-8")
 
