@@ -29,6 +29,12 @@ def test_webui_html_installs_boot_error_handler_before_entry_script():
     assert "window.addEventListener('unhandledrejection'" in source
 
 
+def test_app_imports_react_binding_for_jsx_runtime_output():
+    source = (ROOT / "webui" / "src" / "App.jsx").read_text(encoding="utf-8")
+
+    assert "import React," in source
+
+
 def test_vite_build_outputs_plugin_page_dashboard():
     package_json = (ROOT / "webui" / "package.json").read_text(encoding="utf-8")
 
