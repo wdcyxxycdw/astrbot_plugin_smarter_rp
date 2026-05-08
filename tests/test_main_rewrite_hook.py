@@ -1,7 +1,9 @@
 import asyncio
 import importlib
 import json
+import subprocess
 import sys
+import textwrap
 import types
 from pathlib import Path
 from types import SimpleNamespace
@@ -135,6 +137,67 @@ def make_request():
         tools=[{"name": "transfer_to_agent"}],
         image_urls=["img"],
     )
+
+
+def test_plugin_imports_when_loaded_as_astrbot_data_plugin(tmp_path: Path):
+    plugin_root = Path(__file__).resolve().parents[1]
+    plugins_dir = tmp_path / "data" / "plugins"
+    plugins_dir.mkdir(parents=True)
+    (plugins_dir / "astrbot_plugin_smarter_rp").symlink_to(plugin_root, target_is_directory=True)
+
+    script = textwrap.dedent(
+        """
+        import sys
+        import types
+
+        class FakeTextPart:
+            def __init__(self, text):
+                self.text = text
+
+            def mark_as_temp(self):
+                return self
+
+        filter_module = types.SimpleNamespace(
+            command=lambda *_args, **_kwargs: (lambda func: func),
+            llm_tool=lambda *_args, **_kwargs: (lambda func: func),
+        )
+
+        class FakeStar:
+            def __init__(self, context):
+                self.context = context
+
+        def fake_register(*_args, **_kwargs):
+            return lambda cls: cls
+
+        modules = {
+            "astrbot": types.ModuleType("astrbot"),
+            "astrbot.api": types.ModuleType("astrbot.api"),
+            "astrbot.api.event": types.ModuleType("astrbot.api.event"),
+            "astrbot.api.star": types.ModuleType("astrbot.api.star"),
+            "astrbot.core": types.ModuleType("astrbot.core"),
+            "astrbot.core.agent": types.ModuleType("astrbot.core.agent"),
+            "astrbot.core.agent.message": types.ModuleType("astrbot.core.agent.message"),
+        }
+        modules["astrbot.api.event"].filter = filter_module
+        modules["astrbot.api.star"].Context = object
+        modules["astrbot.api.star"].Star = FakeStar
+        modules["astrbot.api.star"].register = fake_register
+        modules["astrbot.core.agent.message"].TextPart = FakeTextPart
+        sys.modules.update(modules)
+
+        import data.plugins.astrbot_plugin_smarter_rp.main
+        """
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_on_llm_request_delegates_to_request_rewriter(main_module):
