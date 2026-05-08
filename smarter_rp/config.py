@@ -50,7 +50,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "webui": {
         "enabled": True,
         "host": "0.0.0.0",
-        "port": 0,
+        "port": 6589,
         "token": None,
         "token_generated_at": None,
     },

@@ -15,7 +15,7 @@ def test_default_webui_binds_all_interfaces_with_generated_token_placeholder():
 
     assert config.webui["enabled"] is True
     assert config.webui["host"] == "0.0.0.0"
-    assert config.webui["port"] == 0
+    assert config.webui["port"] == 6589
     assert config.webui["token"] is None
 
 
@@ -69,7 +69,7 @@ def test_default_config_instances_are_isolated():
 
     second = SmarterRpConfig.default()
 
-    assert second.webui["port"] == 0
+    assert second.webui["port"] == 6589
 
 
 def test_to_dict_returns_isolated_copy():
@@ -78,4 +78,4 @@ def test_to_dict_returns_isolated_copy():
 
     data["webui"]["port"] = 9999
 
-    assert config.webui["port"] == 0
+    assert config.webui["port"] == 6589
