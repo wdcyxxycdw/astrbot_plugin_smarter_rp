@@ -19,13 +19,47 @@ class PromptBuilder:
         lorebook_buckets: dict[str, str] | None = None,
         memory_events: list[MemoryHit] | None = None,
     ) -> str:
-        lorebook_buckets = lorebook_buckets or {}
-        blocks = [
+        blocks = [*self.system_blocks(account_profile, character), *self.temporary_context_blocks(session, current_input, history_messages, lorebook_buckets, memory_events)]
+        return self._fit_to_budget("\n\n".join(blocks), current_input)
+
+    def system_prompt(
+        self,
+        account_profile: AccountProfile | None,
+        character: Character,
+    ) -> str:
+        return "\n\n".join(self.system_blocks(account_profile, character))
+
+    def temporary_context(
+        self,
+        session: RpSession,
+        current_input: str,
+        history_messages: list[RpMessage] | None = None,
+        lorebook_buckets: dict[str, str] | None = None,
+        memory_events: list[MemoryHit] | None = None,
+    ) -> str:
+        return self._fit_to_budget(
+            "\n\n".join(self.temporary_context_blocks(session, current_input, history_messages, lorebook_buckets, memory_events)),
+            current_input,
+        )
+
+    def system_blocks(self, account_profile: AccountProfile | None, character: Character) -> list[str]:
+        return [
             self._block("Global RP System Rules", "Stay in character and continue the roleplay naturally."),
             self._block("Account/Profile Persona", self._account_persona(account_profile)),
+            self._block("Character", self._character_text(character)),
         ]
+
+    def temporary_context_blocks(
+        self,
+        session: RpSession,
+        current_input: str,
+        history_messages: list[RpMessage] | None = None,
+        lorebook_buckets: dict[str, str] | None = None,
+        memory_events: list[MemoryHit] | None = None,
+    ) -> list[str]:
+        lorebook_buckets = lorebook_buckets or {}
+        blocks = []
         blocks.extend(self._lorebook_blocks(lorebook_buckets, "before_character"))
-        blocks.append(self._block("Character", self._character_text(character)))
         blocks.extend(self._lorebook_blocks(lorebook_buckets, "after_character"))
         blocks.extend(self._memory_blocks(session, memory_events))
         blocks.extend(self._lorebook_blocks(lorebook_buckets, "before_history"))
@@ -34,7 +68,7 @@ class PromptBuilder:
         blocks.extend(self._lorebook_blocks(lorebook_buckets, "after_history"))
         blocks.extend(self._lorebook_blocks(lorebook_buckets, "post_history"))
         blocks.append(self._block("Current Input", current_input))
-        return self._fit_to_budget("\n\n".join(blocks), current_input)
+        return blocks
 
     def contexts_from_history(self, history_messages: list[RpMessage] | None) -> list[dict[str, str]]:
         contexts = []

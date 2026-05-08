@@ -14,6 +14,8 @@ from smarter_rp.services.lorebook_service import LorebookService
 from smarter_rp.services.memory_retrieval import MemoryRetriever
 from smarter_rp.services.prompt_builder import PromptBuilder
 from smarter_rp.services.session_service import SessionService
+from astrbot.core.agent.message import TextPart
+
 from smarter_rp.services.tool_service import ToolService
 
 
@@ -84,28 +86,34 @@ class RequestRewriter:
             history_messages,
             match_result.hits if match_result is not None else [],
         )
-        built_prompt = self.prompt_builder.build(
-            profile,
+        tool_names = self._filter_request_tools(session, request)
+        system_prompt = "[Smarter RP]\n" + self.prompt_builder.system_prompt(profile, character)
+        if any(name.startswith("sc_") for name in tool_names):
+            system_prompt += "\n\nAvailable RP tools: " + ", ".join(name for name in tool_names if name.startswith("sc_"))
+        temporary_context = self.prompt_builder.temporary_context(
             session,
-            character,
             current_input=current_input,
             history_messages=history_messages,
             lorebook_buckets=match_result.buckets if match_result is not None else None,
             memory_events=memory_result.hits if memory_result is not None else None,
         )
-        tool_names = self._filter_request_tools(session, request)
-        system_prompt = "[Smarter RP]\n" + built_prompt
-        if any(name.startswith("sc_") for name in tool_names):
-            system_prompt += "\n\nAvailable RP tools: " + ", ".join(name for name in tool_names if name.startswith("sc_"))
 
         setattr(request, "system_prompt", system_prompt)
         setattr(request, "contexts", self.prompt_builder.contexts_from_history(history_messages))
-        self.debug.save_snapshot(session.id, "prompt", system_prompt)
+        self._append_temp_user_content(request, temporary_context)
+        self.debug.save_snapshot(session.id, "prompt", "\n\n".join([system_prompt, temporary_context]))
         return RewriteResult(True, "rewritten", profile.id, session.id)
 
     def _origin(self, event: object) -> str:
         origin = self._text_or_empty(self._safe_getattr(event, "unified_msg_origin"))
         return origin or "unknown"
+
+    def _append_temp_user_content(self, request: object, content: str) -> None:
+        parts = self._safe_getattr(request, "extra_user_content_parts")
+        if parts is _MISSING:
+            parts = []
+            setattr(request, "extra_user_content_parts", parts)
+        parts.append(TextPart(content).mark_as_temp())
 
     def _match_lorebooks(
         self,

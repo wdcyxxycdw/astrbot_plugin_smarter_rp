@@ -5,6 +5,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+import httpx
+from quart import jsonify, make_response, request
+
 from astrbot.api.event import filter
 from astrbot.api.star import Context, Star, register
 
@@ -96,9 +99,50 @@ class SmarterRpPlugin(Star):
             port=int(self.config_model.webui["port"]),
             storage=self.storage,
         )
+        self._register_plugin_page_api()
         self._webui_task: asyncio.Task | None = None
         self._memory_tasks: dict[str, asyncio.Task] = {}
         self._stopping = False
+
+    def _register_plugin_page_api(self) -> None:
+        register_web_api = self._safe_get(self.context, "register_web_api")
+        if callable(register_web_api):
+            register_web_api(
+                "/smarter_rp/api/<path:path>",
+                self.plugin_page_api_proxy,
+                ["GET", "POST"],
+                "Smarter RP Plugin Page API proxy",
+            )
+
+    async def plugin_page_api_proxy(self, path: str):
+        if not path or path.startswith("/") or ".." in path.split("/"):
+            return await make_response(jsonify({"detail": "invalid path"}), 400)
+        payload = await request.get_json(silent=True) if request.method == "POST" else None
+        method = request.method
+        body = None
+        if isinstance(payload, dict) and isinstance(payload.get("method"), str):
+            method = payload["method"].upper()
+            body = payload.get("body")
+        else:
+            body = payload
+        if method not in {"GET", "POST", "PATCH", "DELETE"}:
+            return await make_response(jsonify({"detail": "method not allowed"}), 405)
+        query = request.query_string.decode("utf-8")
+        target_path = f"/api/{path}"
+        if query:
+            target_path += f"?{query}"
+        headers = {"Authorization": f"Bearer {self.webui.ensure_token()}"}
+        transport = httpx.ASGITransport(app=self.webui.build_app())
+        async with httpx.AsyncClient(transport=transport, base_url="http://smarter-rp.local") as client:
+            response = await client.request(method, target_path, json=body, headers=headers)
+        content_type = response.headers.get("content-type", "")
+        if "application/json" in content_type:
+            quart_response = await make_response(jsonify(response.json()), response.status_code)
+        else:
+            quart_response = await make_response(response.content, response.status_code)
+            if content_type:
+                quart_response.headers["Content-Type"] = content_type
+        return quart_response
 
     async def initialize(self):
         self._stopping = False

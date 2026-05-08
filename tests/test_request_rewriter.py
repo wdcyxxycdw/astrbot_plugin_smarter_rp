@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+from smarter_rp.models import MemoryHit, MemoryRetrievalResult
 from smarter_rp.services.account_service import AccountService
 from smarter_rp.services.character_service import CharacterService
 from smarter_rp.services.debug_service import DebugService
@@ -53,6 +54,57 @@ def test_rewrite_default_active_session_mutates_prompt(tmp_path: Path):
     assert request.prompt == "Hello"
     assert request.image_urls == ["img"]
     assert request.tools == [{"name": "transfer_to_agent"}]
+
+
+class FakeMemoryRetriever:
+    def retrieve(self, *_args):
+        return MemoryRetrievalResult(
+            hits=[
+                MemoryHit(
+                    memory_id="memory_1",
+                    content="Alice remembers the silver key.",
+                    importance=5,
+                    confidence=0.9,
+                    score=1.0,
+                    reason="keyword",
+                )
+            ],
+            debug={"query": "Hello", "candidate_count": 1},
+        )
+
+
+def test_rewrite_uses_temp_extra_user_content_parts_when_available(tmp_path: Path):
+    storage = Storage(tmp_path / "smarter_rp.db")
+    storage.initialize()
+    sessions = SessionService(storage)
+    history = HistoryService(storage, sessions)
+    rewriter = RequestRewriter(
+        accounts=AccountService(storage),
+        sessions=sessions,
+        characters=CharacterService(storage),
+        prompt_builder=PromptBuilder(max_prompt_chars=4000),
+        debug=DebugService(storage),
+        history=history,
+        memory_retriever=FakeMemoryRetriever(),
+    )
+    event = SimpleNamespace(adapter_name="adapter", platform="platform", account_id="bot", unified_msg_origin="origin:temp")
+    session = sessions.get_or_create("origin:temp", None)
+    history.append_message(session.id, role="user", speaker="Hero", content="Found a door")
+    request = SimpleNamespace(prompt="Hello", system_prompt="old", contexts=[], extra_user_content_parts=[])
+
+    result = rewriter.rewrite(event, request)
+
+    assert result.rewritten is True
+    assert request.contexts == [{"role": "user", "content": "Found a door"}]
+    assert request.prompt == "Hello"
+    assert len(request.extra_user_content_parts) == 1
+    part = request.extra_user_content_parts[0]
+    assert part.__class__.__name__ == "FakeTextPart"
+    assert part.marked_temp is True
+    assert "Alice remembers the silver key." in part.text
+    assert "Current Input" in part.text
+    assert "Alice remembers the silver key." not in request.system_prompt
+    assert "Current Input" not in request.system_prompt
 
 
 def test_rewrite_filters_tools_and_saves_tools_debug_snapshot(tmp_path: Path):
@@ -313,9 +365,12 @@ def test_rewrite_populates_contexts_from_plugin_history_and_preserves_prompt(tmp
         {"role": "user", "content": "Hello"},
         {"role": "assistant", "content": "Hi back"},
     ]
-    assert "Hero: Hello" in request.system_prompt
-    assert "Alice: Hi back" in request.system_prompt
-    assert "skip this" not in request.system_prompt
+    assert len(request.extra_user_content_parts) == 1
+    assert request.extra_user_content_parts[0].marked_temp is True
+    assert "Hero: Hello" in request.extra_user_content_parts[0].text
+    assert "Alice: Hi back" in request.extra_user_content_parts[0].text
+    assert "skip this" not in request.extra_user_content_parts[0].text
+    assert "Hero: Hello" not in request.system_prompt
     assert request.tools == [{"name": "tool"}]
     assert request.image_urls == ["img"]
     assert request.attachments == ["file"]
@@ -364,4 +419,7 @@ def test_rewrite_uses_safe_unknown_origin_fallback(tmp_path: Path):
     assert result.rewritten is True
     assert result.session_id is not None
     assert request.contexts == []
-    assert "Current Input" in request.system_prompt
+    assert len(request.extra_user_content_parts) == 1
+    assert request.extra_user_content_parts[0].marked_temp is True
+    assert "Current Input" in request.extra_user_content_parts[0].text
+    assert "Current Input" not in request.system_prompt

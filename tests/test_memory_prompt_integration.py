@@ -53,12 +53,15 @@ def test_request_rewriter_injects_session_memory_and_persists_hits(tmp_path: Pat
     result = rewriter.rewrite(event, request)
 
     assert result.rewritten is True
-    assert "[Session Summary]" in request.system_prompt
-    assert "Alice carries a silver key." in request.system_prompt
-    assert "[Session State]" in request.system_prompt
-    assert "location: library" in request.system_prompt
-    assert "[Relevant Event Memories]" in request.system_prompt
-    assert "Alice promised Bob to open the silver gate." in request.system_prompt
+    temp_content = request.extra_user_content_parts[0].text
+    assert request.extra_user_content_parts[0].marked_temp is True
+    assert "[Session Summary]" in temp_content
+    assert "Alice carries a silver key." in temp_content
+    assert "[Session State]" in temp_content
+    assert "location: library" in temp_content
+    assert "[Relevant Event Memories]" in temp_content
+    assert "Alice promised Bob to open the silver gate." in temp_content
+    assert "Alice promised Bob to open the silver gate." not in request.system_prompt
     saved = sessions.get_by_id(session.id)
     assert saved.last_memory_hits
     assert saved.last_memory_hits[0]["memory_id"] == memory.id

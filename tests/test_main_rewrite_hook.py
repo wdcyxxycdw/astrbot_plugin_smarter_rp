@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from quart import Quart
 
 from smarter_rp.models import Lorebook, LorebookEntry
 from smarter_rp.services.account_service import AccountService
@@ -161,6 +162,9 @@ def test_on_llm_request_active_request_rewrites(main_module, tmp_path):
     assert req.prompt == "Hello"
     assert req.tools == [{"name": "transfer_to_agent"}]
     assert req.image_urls == ["img"]
+    assert len(req.extra_user_content_parts) == 1
+    assert req.extra_user_content_parts[0].marked_temp is True
+    assert "Current Input" in req.extra_user_content_parts[0].text
 
 
 def test_on_llm_request_account_disabled_passes_unchanged(main_module, tmp_path):
@@ -380,6 +384,14 @@ def test_tool_trace_hooks_ignore_unusual_event_shapes(main_module, tmp_path):
     assert plugin.debug.list_snapshots(snapshot_type="tools")
 
 
+class FakeContext:
+    def __init__(self):
+        self.registered_web_apis = []
+
+    def register_web_api(self, route, view_handler, methods, desc):
+        self.registered_web_apis.append((route, view_handler, methods, desc))
+
+
 def test_init_wires_rewriter_services_with_storage(main_module, monkeypatch, tmp_path):
     monkeypatch.setattr(main_module.SmarterRpPlugin, "_resolve_data_dir", lambda self: tmp_path)
 
@@ -410,3 +422,90 @@ def test_init_wires_rewriter_services_with_storage(main_module, monkeypatch, tmp
     assert plugin.tool_service.whitelist == []
     assert plugin.tool_service.preserve_mcp is False
     assert plugin.characters.list_characters()
+
+
+def test_init_registers_plugin_page_proxy_api(main_module, monkeypatch, tmp_path):
+    monkeypatch.setattr(main_module.SmarterRpPlugin, "_resolve_data_dir", lambda self: tmp_path)
+    context = FakeContext()
+
+    plugin = main_module.SmarterRpPlugin(context, {"webui": {"enabled": False}})
+
+    assert context.registered_web_apis == [
+        (
+            "/smarter_rp/api/<path:path>",
+            plugin.plugin_page_api_proxy,
+            ["GET", "POST"],
+            "Smarter RP Plugin Page API proxy",
+        )
+    ]
+
+
+def test_plugin_page_api_proxy_forwards_get_to_webui_app(main_module, monkeypatch, tmp_path):
+    monkeypatch.setattr(main_module.SmarterRpPlugin, "_resolve_data_dir", lambda self: tmp_path)
+    plugin = main_module.SmarterRpPlugin(FakeContext(), {"webui": {"enabled": False}})
+    app = Quart(__name__)
+
+    async def call_proxy():
+        async with app.test_request_context("/api/plug/smarter_rp/api/health", method="GET"):
+            response = await plugin.plugin_page_api_proxy("health")
+            return await response.get_json()
+
+    payload = asyncio.run(call_proxy())
+
+    assert payload == {"ok": True}
+
+
+def test_plugin_page_api_proxy_forwards_post_method_override(main_module, monkeypatch, tmp_path):
+    monkeypatch.setattr(main_module.SmarterRpPlugin, "_resolve_data_dir", lambda self: tmp_path)
+    plugin = main_module.SmarterRpPlugin(FakeContext(), {"webui": {"enabled": False}})
+    app = Quart(__name__)
+
+    async def call_proxy():
+        async with app.test_request_context(
+            "/api/plug/smarter_rp/api/sessions/session_missing",
+            method="POST",
+            json={"method": "PATCH", "body": {"paused": True}},
+        ):
+            response = await plugin.plugin_page_api_proxy("sessions/session_missing")
+            return response.status_code, await response.get_json()
+
+    status_code, payload = asyncio.run(call_proxy())
+
+    assert status_code == 404
+    assert payload["detail"] == "session not found"
+
+
+def test_plugin_page_api_proxy_rejects_unsupported_method_override(main_module, monkeypatch, tmp_path):
+    monkeypatch.setattr(main_module.SmarterRpPlugin, "_resolve_data_dir", lambda self: tmp_path)
+    plugin = main_module.SmarterRpPlugin(FakeContext(), {"webui": {"enabled": False}})
+    app = Quart(__name__)
+
+    async def call_proxy():
+        async with app.test_request_context(
+            "/api/plug/smarter_rp/api/health",
+            method="POST",
+            json={"method": "TRACE", "body": None},
+        ):
+            response = await plugin.plugin_page_api_proxy("health")
+            return response.status_code, await response.get_json()
+
+    status_code, payload = asyncio.run(call_proxy())
+
+    assert status_code == 405
+    assert payload == {"detail": "method not allowed"}
+
+
+def test_plugin_page_api_proxy_rejects_invalid_path(main_module, monkeypatch, tmp_path):
+    monkeypatch.setattr(main_module.SmarterRpPlugin, "_resolve_data_dir", lambda self: tmp_path)
+    plugin = main_module.SmarterRpPlugin(FakeContext(), {"webui": {"enabled": False}})
+    app = Quart(__name__)
+
+    async def call_proxy():
+        async with app.test_request_context("/api/plug/smarter_rp/api/../debug", method="GET"):
+            response = await plugin.plugin_page_api_proxy("../debug")
+            return response.status_code, await response.get_json()
+
+    status_code, payload = asyncio.run(call_proxy())
+
+    assert status_code == 400
+    assert payload == {"detail": "invalid path"}

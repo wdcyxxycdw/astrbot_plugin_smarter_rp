@@ -59,8 +59,11 @@ def test_rewrite_injects_active_lorebook_before_history_and_saves_hits(tmp_path:
     result = rewriter.rewrite(event, request)
 
     assert result.rewritten is True
-    assert "[Lorebook: before_history]" in request.system_prompt
-    assert entry.content in request.system_prompt
+    temp_content = request.extra_user_content_parts[0].text
+    assert request.extra_user_content_parts[0].marked_temp is True
+    assert "[Lorebook: before_history]" in temp_content
+    assert entry.content in temp_content
+    assert entry.content not in request.system_prompt
     saved_session = sessions.get_by_id(session.id)
     assert saved_session.last_lore_hits
     assert saved_session.last_lore_hits[0]["entry_id"] == entry.id

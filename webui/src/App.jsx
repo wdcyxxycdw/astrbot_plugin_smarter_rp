@@ -159,7 +159,28 @@ function listToLines(value) {
   return Array.isArray(value) ? value.join('\n') : '';
 }
 
+function pluginPageBridge() {
+  return window.AstrBotPluginPage || null;
+}
+
+function pluginEndpoint(path) {
+  return `api/${path.replace(/^\/api\//, '')}`;
+}
+
 async function apiFetch(path, options = {}) {
+  const bridge = pluginPageBridge();
+  const method = (options.method || 'GET').toUpperCase();
+  if (bridge) {
+    await bridge.ready();
+    if (method === 'GET') {
+      return bridge.apiGet(pluginEndpoint(path));
+    }
+    if (method === 'POST' || method === 'PATCH' || method === 'DELETE') {
+      const body = options.body ? JSON.parse(options.body) : null;
+      return bridge.apiPost(pluginEndpoint(path), { method, body });
+    }
+  }
+
   const token = new URLSearchParams(window.location.search).get('token');
   const headers = new Headers(options.headers || {});
   headers.set('Accept', 'application/json');

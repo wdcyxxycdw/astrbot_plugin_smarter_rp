@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build --outDir ../smarter_rp/web/static --emptyOutDir"
+    "build": "npm run build:standalone && npm run build:plugin-page",
+    "build:standalone": "vite build --base ./ --outDir ../smarter_rp/web/static --emptyOutDir",
+    "build:plugin-page": "vite build --base ./ --outDir ../pages/dashboard --emptyOutDir"
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",

@@ -3,3 +3,7 @@ desc: WebUI-first roleplay prompt orchestration for AstrBot
 version: 0.1.0
 author: smarter-rp
 repo: ""
+pages:
+  - name: dashboard
+    title: Smarter RP
+    description: Manage Smarter RP accounts, characters, lorebooks, sessions, memory, and debug traces.
