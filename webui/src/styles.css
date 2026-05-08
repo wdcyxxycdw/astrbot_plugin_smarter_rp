@@ -29,6 +29,41 @@ body::before {
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 78%);
 }
 
+.boot-fallback,
+.boot-error {
+  width: min(720px, calc(100vw - 48px));
+  margin: 12vh auto 0;
+  padding: 28px;
+  color: #f7fff9;
+  background: rgba(18, 35, 27, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+}
+
+.boot-fallback strong,
+.boot-fallback span,
+.boot-error strong {
+  display: block;
+}
+
+.boot-fallback strong,
+.boot-error strong {
+  margin-bottom: 10px;
+  font-size: 24px;
+}
+
+.boot-fallback span {
+  color: rgba(238, 248, 241, 0.72);
+}
+
+.boot-error pre {
+  max-height: 50vh;
+  overflow: auto;
+  color: rgba(238, 248, 241, 0.78);
+  white-space: pre-wrap;
+}
+
 .app-shell {
   min-height: 100vh;
   background: transparent;
