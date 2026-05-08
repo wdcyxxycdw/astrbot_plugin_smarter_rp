@@ -27,6 +27,39 @@ def make_rewriter(tmp_path: Path) -> tuple[RequestRewriter, Storage]:
     return rewriter, storage
 
 
+def test_rewrite_preserves_original_system_prompt_and_appends_configured_global_prompt(tmp_path: Path):
+    storage = Storage(tmp_path / "smarter_rp.db")
+    storage.initialize()
+    rewriter = RequestRewriter(
+        accounts=AccountService(storage),
+        sessions=SessionService(storage),
+        characters=CharacterService(storage),
+        prompt_builder=PromptBuilder(max_prompt_chars=4000, global_prompt="Custom global directive"),
+        debug=DebugService(storage),
+    )
+    event = SimpleNamespace(adapter_name="adapter", platform="platform", account_id="bot", unified_msg_origin="origin:preserve")
+    request = SimpleNamespace(prompt="Hello", system_prompt="Original AstrBot system prompt", contexts=[])
+
+    result = rewriter.rewrite(event, request)
+
+    assert result.rewritten is True
+    assert request.system_prompt.startswith("Original AstrBot system prompt\n\n[Smarter RP]\n")
+    assert "[Global RP System Rules]\nCustom global directive" in request.system_prompt
+    assert request.system_prompt.index("Original AstrBot system prompt") < request.system_prompt.index("[Smarter RP]")
+
+
+def test_rewrite_without_original_system_prompt_still_sets_smarter_rp_prompt(tmp_path: Path):
+    rewriter, _ = make_rewriter(tmp_path)
+    event = SimpleNamespace(adapter_name="adapter", platform="platform", account_id="bot", unified_msg_origin="origin:empty-system")
+    request = SimpleNamespace(prompt="Hello", contexts=[])
+
+    result = rewriter.rewrite(event, request)
+
+    assert result.rewritten is True
+    assert request.system_prompt.startswith("[Smarter RP]\n")
+    assert "[Global RP System Rules]" in request.system_prompt
+
+
 def test_rewrite_default_active_session_mutates_prompt(tmp_path: Path):
     rewriter, _ = make_rewriter(tmp_path)
     event = SimpleNamespace(

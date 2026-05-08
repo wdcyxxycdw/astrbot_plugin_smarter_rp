@@ -112,6 +112,13 @@ SCHEMA_STATEMENTS = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS plugin_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+    )
+    """,
+    """
     CREATE INDEX IF NOT EXISTS idx_rp_messages_session_turn
         ON rp_messages(session_id, turn_number)
     """,
@@ -197,6 +204,22 @@ class Storage:
     def fetch_all(self, sql: str, params: Iterable[Any] = ()) -> list[sqlite3.Row]:
         with self.connection() as conn:
             return list(conn.execute(sql, tuple(params)).fetchall())
+
+    def get_setting(self, key: str, default: str | None = None) -> str | None:
+        row = self.fetch_one("SELECT value FROM plugin_settings WHERE key = ?", (key,))
+        if row is None:
+            return default
+        return str(row["value"])
+
+    def set_setting(self, key: str, value: str) -> None:
+        self.execute(
+            """
+            INSERT INTO plugin_settings(key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+            """,
+            (key, value, now_ts()),
+        )
 
 
 def now_ts() -> int:

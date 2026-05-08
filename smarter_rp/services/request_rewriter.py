@@ -87,7 +87,10 @@ class RequestRewriter:
             match_result.hits if match_result is not None else [],
         )
         tool_names = self._filter_request_tools(session, request)
-        system_prompt = "[Smarter RP]\n" + self.prompt_builder.system_prompt(profile, character)
+        system_prompt = self._append_system_prompt(
+            self._safe_getattr(request, "system_prompt"),
+            "[Smarter RP]\n" + self.prompt_builder.system_prompt(profile, character),
+        )
         if any(name.startswith("sc_") for name in tool_names):
             system_prompt += "\n\nAvailable RP tools: " + ", ".join(name for name in tool_names if name.startswith("sc_"))
         temporary_context = self.prompt_builder.temporary_context(
@@ -107,6 +110,12 @@ class RequestRewriter:
     def _origin(self, event: object) -> str:
         origin = self._text_or_empty(self._safe_getattr(event, "unified_msg_origin"))
         return origin or "unknown"
+
+    def _append_system_prompt(self, original: object, smarter_rp_prompt: str) -> str:
+        original_text = self._text_or_empty(original).strip()
+        if not original_text:
+            return smarter_rp_prompt
+        return original_text + "\n\n" + smarter_rp_prompt
 
     def _append_temp_user_content(self, request: object, content: str) -> None:
         parts = self._safe_getattr(request, "extra_user_content_parts")

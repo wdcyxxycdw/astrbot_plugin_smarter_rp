@@ -64,7 +64,7 @@ def create_app(token: str, storage: Storage | None = None) -> FastAPI:
     if assets_dir.exists():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-    app.include_router(create_dashboard_router(auth_dependency))
+    app.include_router(create_dashboard_router(auth_dependency, storage))
     app.include_router(create_accounts_router(auth_dependency, account_service))
     app.include_router(create_sessions_router(auth_dependency, session_service))
     app.include_router(create_history_router(auth_dependency, history_service))

@@ -3,11 +3,18 @@ from __future__ import annotations
 from typing import Any
 
 from smarter_rp.models import AccountProfile, Character, MemoryHit, RpMessage, RpSession
+from smarter_rp.storage import Storage
+
+
+DEFAULT_GLOBAL_PROMPT = "Stay in character and continue the roleplay naturally."
+GLOBAL_PROMPT_SETTING_KEY = "global_prompt"
 
 
 class PromptBuilder:
-    def __init__(self, max_prompt_chars: int = 12000):
+    def __init__(self, max_prompt_chars: int = 12000, global_prompt: str | None = None, storage: Storage | None = None):
         self.max_prompt_chars = max_prompt_chars
+        self.global_prompt = global_prompt
+        self.storage = storage
 
     def build(
         self,
@@ -44,7 +51,7 @@ class PromptBuilder:
 
     def system_blocks(self, account_profile: AccountProfile | None, character: Character) -> list[str]:
         return [
-            self._block("Global RP System Rules", "Stay in character and continue the roleplay naturally."),
+            self._block("Global RP System Rules", self._global_prompt()),
             self._block("Account/Profile Persona", self._account_persona(account_profile)),
             self._block("Character", self._character_text(character)),
         ]
@@ -80,6 +87,13 @@ class PromptBuilder:
 
     def _block(self, title: str, content: str) -> str:
         return f"[{title}]\n{content or '(empty)'}"
+
+    def _global_prompt(self) -> str:
+        if self.global_prompt is not None:
+            return self.global_prompt
+        if self.storage is not None:
+            return self.storage.get_setting(GLOBAL_PROMPT_SETTING_KEY, DEFAULT_GLOBAL_PROMPT) or ""
+        return DEFAULT_GLOBAL_PROMPT
 
     def _lorebook_blocks(self, lorebook_buckets: dict[str, str], position: str) -> list[str]:
         content = lorebook_buckets.get(position, "")

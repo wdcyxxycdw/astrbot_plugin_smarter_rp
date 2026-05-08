@@ -17,6 +17,20 @@ def test_storage_initializes_database_and_tables(tmp_path: Path):
     assert "account_profiles" in tables
     assert "rp_sessions" in tables
     assert "debug_snapshots" in tables
+    assert "plugin_settings" in tables
+
+
+def test_storage_persists_plugin_settings(tmp_path: Path):
+    storage = Storage(tmp_path / "smarter_rp.db")
+    storage.initialize()
+
+    assert storage.get_setting("global_prompt", "fallback") == "fallback"
+
+    storage.set_setting("global_prompt", "Custom global prompt")
+
+    reopened = Storage(tmp_path / "smarter_rp.db")
+    reopened.initialize()
+    assert reopened.get_setting("global_prompt") == "Custom global prompt"
 
 
 def test_storage_initialize_is_idempotent(tmp_path: Path):

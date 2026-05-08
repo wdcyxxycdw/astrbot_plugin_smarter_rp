@@ -58,7 +58,8 @@ class SmarterRpPlugin(Star):
             max_recursive_depth=int(self.config_model.lorebook.get("max_recursive_depth", 2)),
         )
         self.prompt_builder = PromptBuilder(
-            max_prompt_chars=int(self.config_model.prompt.get("max_prompt_chars", 4000))
+            max_prompt_chars=int(self.config_model.prompt.get("max_prompt_chars", 4000)),
+            storage=self.storage,
         )
         self.debug = DebugService(self.storage)
         self.memory = MemoryService(self.storage, self.sessions)

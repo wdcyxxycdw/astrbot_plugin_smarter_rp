@@ -195,6 +195,47 @@ async function apiFetch(path, options = {}) {
 }
 
 function DashboardPage() {
+  const [globalPrompt, setGlobalPrompt] = useState('');
+  const [loadingConfig, setLoadingConfig] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configError, setConfigError] = useState('');
+  const [configSaved, setConfigSaved] = useState(false);
+
+  async function loadConfig() {
+    setLoadingConfig(true);
+    setConfigError('');
+    try {
+      const data = await apiFetch('/api/dashboard/config');
+      setGlobalPrompt(data?.global_prompt || '');
+    } catch (err) {
+      setConfigError(err.message);
+    } finally {
+      setLoadingConfig(false);
+    }
+  }
+
+  async function saveConfig() {
+    setSavingConfig(true);
+    setConfigError('');
+    setConfigSaved(false);
+    try {
+      const data = await apiFetch('/api/dashboard/config', {
+        method: 'PATCH',
+        body: JSON.stringify({ global_prompt: globalPrompt }),
+      });
+      setGlobalPrompt(data?.global_prompt || '');
+      setConfigSaved(true);
+    } catch (err) {
+      setConfigError(err.message);
+    } finally {
+      setSavingConfig(false);
+    }
+  }
+
+  useEffect(() => {
+    loadConfig();
+  }, []);
+
   const cards = [
     {
       title: '默认启用',
@@ -242,6 +283,35 @@ function DashboardPage() {
           </Col>
         ))}
       </Row>
+      <Card className="feature-card form-card" bordered={false}>
+        <Space className="form-title-row" align="center">
+          <Title level={3}>全局提示词</Title>
+          {configSaved && <Tag color="green">已保存</Tag>}
+        </Space>
+        <Paragraph type="secondary">
+          这段提示词会注入到 Smarter RP 的全局规则块中，并追加在 AstrBot 原有系统提示词之后。
+        </Paragraph>
+        {configError && <div className="error-banner">{configError}</div>}
+        <Form layout="vertical">
+          <Form.Item label="全局提示词">
+            <TextArea
+              rows={6}
+              value={globalPrompt}
+              disabled={loadingConfig}
+              onChange={(event) => {
+                setGlobalPrompt(event.target.value);
+                setConfigSaved(false);
+              }}
+            />
+          </Form.Item>
+          <Space wrap>
+            <Button type="primary" onClick={saveConfig} loading={savingConfig}>
+              保存全局提示词
+            </Button>
+            <Button onClick={loadConfig} loading={loadingConfig}>重新加载</Button>
+          </Space>
+        </Form>
+      </Card>
     </section>
   );
 }

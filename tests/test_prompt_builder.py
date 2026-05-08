@@ -19,6 +19,15 @@ def test_prompt_builder_orders_core_blocks():
     assert "Hello" in prompt
 
 
+def test_prompt_builder_uses_configured_global_prompt():
+    builder = PromptBuilder(max_prompt_chars=4000, global_prompt="Custom global directive")
+
+    prompt = builder.system_prompt(None, Character(id="c", name="C"))
+
+    assert "[Global RP System Rules]\nCustom global directive" in prompt
+    assert "Stay in character and continue the roleplay naturally." not in prompt
+
+
 def test_prompt_builder_truncates_to_budget():
     builder = PromptBuilder(max_prompt_chars=120)
     prompt = builder.build(None, RpSession("s", "origin", None), Character(id="c", name="C", description="x" * 1000), "hello")

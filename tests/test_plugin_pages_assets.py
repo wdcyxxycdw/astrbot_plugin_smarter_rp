@@ -76,6 +76,15 @@ def test_character_editor_uses_single_prompt_field():
     assert "characterListFields.map" not in source
 
 
+def test_webui_dashboard_includes_global_prompt_editor():
+    source = (ROOT / "webui" / "src" / "App.jsx").read_text(encoding="utf-8")
+
+    assert "全局提示词" in source
+    assert "保存全局提示词" in source
+    assert "/api/dashboard/config" in source
+    assert "global_prompt" in source
+
+
 def test_vite_build_outputs_plugin_page_dashboard():
     package_json = (ROOT / "webui" / "package.json").read_text(encoding="utf-8")
 
@@ -104,6 +113,26 @@ def test_plugin_page_build_references_existing_assets():
     assert js_assets
     assert css_assets
     assert any(path.name in index for path in js_assets)
+    for asset_path in css_assets:
+        assert asset_path.name in index or asset_path.name in js_sources
+    for asset_path in js_assets:
+        assert asset_path.name in index or asset_path.name in js_sources
+
+
+def test_standalone_build_references_existing_assets_and_config_ui():
+    page_root = ROOT / "smarter_rp" / "web" / "static"
+    index = (page_root / "index.html").read_text(encoding="utf-8")
+    assets_dir = page_root / "assets"
+    js_assets = [path for path in assets_dir.iterdir() if path.suffix == ".js"]
+    css_assets = [path for path in assets_dir.iterdir() if path.suffix == ".css"]
+    js_sources = "\n".join(path.read_text(encoding="utf-8") for path in js_assets)
+
+    assert (page_root / "index.html").exists()
+    assert js_assets
+    assert css_assets
+    assert any(path.name in index for path in js_assets)
+    assert "全局提示词" in js_sources
+    assert "/api/dashboard/config" in js_sources
     for asset_path in css_assets:
         assert asset_path.name in index or asset_path.name in js_sources
     for asset_path in js_assets:
