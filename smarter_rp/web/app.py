@@ -1,82 +1,61 @@
-from pathlib import Path
+from __future__ import annotations
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse, HTMLResponse
+from pathlib import Path
+from typing import Any
+
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from smarter_rp.services.account_service import AccountService
-from smarter_rp.services.character_service import CharacterService
-from smarter_rp.services.debug_service import DebugService
-from smarter_rp.services.history_service import HistoryService
-from smarter_rp.services.lorebook_service import LorebookService
-from smarter_rp.services.memory_service import MemoryService
-from smarter_rp.services.session_service import SessionService
-from smarter_rp.storage import Storage
-from smarter_rp.web.auth import verify_token_factory
-from smarter_rp.web.routes_accounts import create_accounts_router
-from smarter_rp.web.routes_characters import create_characters_router
-from smarter_rp.web.routes_dashboard import create_dashboard_router
-from smarter_rp.web.routes_debug import create_debug_router
-from smarter_rp.web.routes_history import create_history_router
-from smarter_rp.web.routes_lorebooks import create_lorebooks_router
-from smarter_rp.web.routes_memory import create_memory_router
-from smarter_rp.web.routes_sessions import create_sessions_router
+from smarter_rp.config import SmarterRpConfig
+from smarter_rp.tavern_bindings import TavernBindingService
+from smarter_rp.web.auth import resolve_token
+from smarter_rp.web import routes_bindings, routes_characters, routes_status, routes_worldbooks
 
 
-STATIC_DIR = Path(__file__).parent / "static"
-INDEX_FILE = STATIC_DIR / "index.html"
+def create_web_app(
+    *,
+    client: Any,
+    bindings: TavernBindingService,
+    config: SmarterRpConfig,
+    webui_token: str | None = None,
+) -> FastAPI:
+    app = FastAPI(title="AstrBot Smarter RP WebUI")
+    app.state.tavern_client = client
+    app.state.bindings = bindings
+    app.state.config = config
+    app.state.webui_token = webui_token or resolve_token(str(config.webui.get("token", "") or ""))
 
+    app.include_router(routes_status.router)
+    app.include_router(routes_characters.router)
+    app.include_router(routes_worldbooks.router)
+    app.include_router(routes_bindings.router)
 
-def create_app(token: str, storage: Storage | None = None) -> FastAPI:
-    auth_dependency = verify_token_factory(token)
-    account_service = AccountService(storage) if storage is not None else None
-    session_service = SessionService(storage) if storage is not None else None
-    history_service = (
-        HistoryService(storage, session_service)
-        if storage is not None and session_service is not None
-        else None
-    )
-    debug_service = DebugService(storage) if storage is not None else None
-    memory_service = (
-        MemoryService(storage, session_service)
-        if storage is not None and session_service is not None
-        else None
-    )
-    character_service = CharacterService(storage) if storage is not None else None
-    lorebook_service = LorebookService(storage) if storage is not None else None
-    app = FastAPI(title="Smarter RP 控制台")
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        for error in exc.errors():
+            if error.get("type") == "missing" and tuple(error.get("loc", ())) == ("body", "file"):
+                return JSONResponse(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    content={"detail": "Missing file"},
+                )
+        return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": exc.errors()})
 
-    @app.get("/api/health")
-    async def health():
-        return {"ok": True}
+    static_dir = _find_static_dir()
+    if static_dir is not None:
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="webui")
 
-    @app.get("/")
-    async def root():
-        if INDEX_FILE.exists():
-            return FileResponse(INDEX_FILE)
-        return HTMLResponse(
-            "<html><body><h1>Smarter RP</h1>"
-            "<p>WebUI 静态资源尚未构建。</p>"
-            "</body></html>"
-        )
-
-    assets_dir = STATIC_DIR / "assets"
-    if assets_dir.exists():
-        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
-
-    app.include_router(create_dashboard_router(auth_dependency, storage))
-    app.include_router(create_accounts_router(auth_dependency, account_service))
-    app.include_router(create_sessions_router(auth_dependency, session_service))
-    app.include_router(create_history_router(auth_dependency, history_service))
-    app.include_router(create_debug_router(auth_dependency, debug_service))
-    app.include_router(create_memory_router(auth_dependency, memory_service, session_service))
-    app.include_router(create_characters_router(auth_dependency, character_service))
-    app.include_router(
-        create_lorebooks_router(
-            auth_dependency,
-            lorebook_service,
-            account_service,
-            session_service,
-        )
-    )
     return app
+
+
+def _find_static_dir() -> Path | None:
+    package_static = Path(__file__).with_name("static")
+    if package_static.exists():
+        return package_static
+
+    project_root = Path(__file__).resolve().parents[2]
+    webui_dist = project_root / "webui" / "dist"
+    if webui_dist.exists():
+        return webui_dist
+    return None

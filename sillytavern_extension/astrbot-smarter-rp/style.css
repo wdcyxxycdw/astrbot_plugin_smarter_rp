@@ -1,0 +1,14 @@
+.astrbot-smarter-rp-settings input {
+  width: 100%;
+}
+
+.astrbot-smarter-rp-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+#astrbot_bridge_status {
+  white-space: pre-wrap;
+  margin-top: 0.5rem;
+}

@@ -1,9 +1,5 @@
 name: smarter_rp
-desc: 面向 WebUI 的 AstrBot 角色扮演提示词编排插件
+desc: AstrBot embedded Tavern adapter
 version: 0.1.0
 author: smarter-rp
 repo: ""
-pages:
-  - name: dashboard
-    title: Smarter RP 控制台
-    description: 管理 Smarter RP 的账号、角色、世界书、会话、记忆和调试轨迹。

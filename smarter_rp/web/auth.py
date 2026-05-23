@@ -1,21 +1,29 @@
-from typing import Optional
+from __future__ import annotations
 
-from fastapi import Header, HTTPException, Query
+import secrets
+from typing import Annotated
+
+from fastapi import Header, HTTPException, Request, status
 
 
-def verify_token_factory(expected_token: str):
-    if not expected_token or not expected_token.strip():
-        raise ValueError("webui token must not be empty")
+def resolve_token(configured_token: str | None) -> str:
+    token = (configured_token or "").strip()
+    if token:
+        return token
+    return secrets.token_urlsafe(32)
 
-    async def verify_token(
-        token: Optional[str] = Query(default=None),
-        authorization: Optional[str] = Header(default=None),
-    ) -> None:
-        provided_token = token
-        if authorization and authorization.startswith("Bearer "):
-            provided_token = authorization.removeprefix("Bearer ")
 
-        if provided_token != expected_token:
-            raise HTTPException(status_code=401, detail="invalid webui token")
+async def require_token(
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+    x_smarter_rp_token: Annotated[str | None, Header()] = None,
+) -> None:
+    expected = getattr(request.app.state, "webui_token", "")
+    provided = ""
+    if authorization and authorization.lower().startswith("bearer "):
+        provided = authorization[7:].strip()
+    elif x_smarter_rp_token:
+        provided = x_smarter_rp_token.strip()
 
-    return verify_token
+    if not expected or not provided or not secrets.compare_digest(provided, expected):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
